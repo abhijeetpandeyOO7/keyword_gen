@@ -148,10 +148,35 @@
   }
 
   // ===== Storage =====
+  // MODIFIED: loadTemplates now auto-merges shipped defaults (from templates.js) into stored data.
   const loadTemplates=()=>{
+    // Prefer shipped defaults if present; otherwise fall back to DEFAULT_TEMPLATES
+    const shipped = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
+      && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
+      ? window.KG_DEFAULT_TEMPLATES
+      : DEFAULT_TEMPLATES;
+
     const stored = lsGet(STORAGE.templates, null);
-    if(stored && stored.types) { state.templates = stored; }
-    else { state.templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)); lsSet(STORAGE.templates, state.templates); }
+    let result = (stored && stored.types) ? stored : JSON.parse(JSON.stringify(shipped));
+
+    // Merge in any missing types or columns from shipped defaults
+    if (shipped && shipped.types) {
+      result.types = result.types || {};
+      Object.keys(shipped.types).forEach(t => {
+        if (!result.types[t]) {
+          // add entire new type (e.g., Type 2)
+          result.types[t] = shipped.types[t];
+        } else {
+          // ensure columns exist if they were missing (don’t overwrite rows)
+          if (!Array.isArray(result.types[t].columns) && Array.isArray(shipped.types[t].columns)) {
+            result.types[t].columns = shipped.types[t].columns;
+          }
+        }
+      });
+    }
+
+    state.templates = result;
+    lsSet(STORAGE.templates, result);
   };
   const persistTemplates=()=>lsSet(STORAGE.templates, state.templates);
   const getLogs = ()=>lsGet(STORAGE.logs, []);
