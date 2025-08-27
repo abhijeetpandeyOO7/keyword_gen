@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Keyword Generator — Internal Tool</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="note-bar">System is <b>case-sensitive</b>; spaces are preserved.</div>
+
+  <!-- Password Gate (always shown on refresh) -->
+  <div id="gate" class="gate">
+    <div class="gate-card">
+      <h1>Keyword Generator</h1>
+      <p class="muted">Please enter password to enter</p>
+      <label>Password</label>
+      <input type="password" id="gate-pass" placeholder="Enter passcode" autocomplete="current-password">
+      <div class="gate-actions">
+        <button id="gate-enter" class="btn primary">Enter</button>
+      </div>
+      <p id="gate-error" class="error" hidden>Incorrect password. Try again.</p>
+    </div>
+  </div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">🔐</span>
+      <h2>Keyword Generator</h2>
+      <span class="dot muted">Online</span>
+    </div>
+    <div class="actions">
+      <button id="theme-toggle" class="btn">🌗 Theme</button>
+      <button id="lock" class="btn">Lock</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab" data-tab="generate">Generate</button>
+    <!-- Templates tab (admin-gated) -->
+    <button class="tab" data-tab="templates">Templates</button>
+    <button class="tab" data-tab="logs">Logs</button>
+    <button class="tab" data-tab="help">Help</button>
+  </nav>
+
+  <main>
+    <!-- Empty state until a tab is clicked -->
+    <div id="empty-state" class="empty">
+      <div class="card">
+        <h3>Welcome</h3>
+        <p class="muted">Select a tab above to begin.</p>
+      </div>
+    </div>
+
+    <!-- Generate -->
+    <section id="tab-generate" class="panel">
+      <div class="grid two">
+        <form id="gen-form" class="card" onsubmit="return false;">
+          <h3>Inputs</h3>
+
+          <div class="grid two">
+            <div>
+              <label>Type</label>
+              <select id="in-type">
+                <option value="Type 1">Type 1</option>
+              </select>
+            </div>
+            <div>
+              <label>Session</label>
+              <input id="session-id" type="text" readonly>
+            </div>
+          </div>
+
+          <!-- Dynamic keyword inputs appear here -->
+          <div id="kw-box" class="grid three"></div>
+
+          <div class="row gap">
+            <label class="row gap"><input type="checkbox" id="toggle-autolog" checked> Auto-log</label>
+            <button type="button" class="btn" id="btn-copy-all">Copy All</button>
+            <button type="button" class="btn" id="btn-export-csv">Export CSV</button>
+            <button type="button" class="btn" id="btn-export-json">Export JSON</button>
+            <button type="button" class="btn primary" id="btn-save-log">Save Log</button>
+          </div>
+          <p class="muted small">Shortcuts: Ctrl+S → Save log · Ctrl+E → Export CSV</p>
+        </form>
+
+        <div class="card">
+          <h3>Preview (Type layout)</h3>
+          <div class="table-wrap">
+            <table id="preview-table" class="table">
+              <thead>
+                <tr id="preview-head">
+                  <th>Campaign Name</th><th>Adset Name</th><th>Keywords</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="muted small">Tip: tap/click any cell to copy it.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Templates (admin-guarded actions) -->
+    <section id="tab-templates" class="panel">
+      <div class="card">
+        <h3>Templates</h3>
+        <div class="grid two">
+          <div>
+            <p class="muted small">
+              Load or modify template sets. Changes are saved to <code>localStorage</code> and applied immediately.
+            </p>
+            <div class="row gap">
+              <label class="btn file">
+                <input type="file" id="tpl-file" accept=".json,application/json">
+                Import JSON
+              </label>
+              <button class="btn" id="tpl-export-json">Export JSON</button>
+              <button class="btn" id="tpl-reset">Reset to Defaults</button>
+            </div>
+            <div class="row gap" style="margin-top:10px">
+              <button class="btn" id="tpl-add-type2">Quick-add Type 2 (example)</button>
+              <span class="muted small">Adds/overwrites “Type 2” from shipped defaults.</span>
+            </div>
+          </div>
+          <div>
+            <label>Current templates (read-only preview)</label>
+            <textarea id="tpl-preview" rows="18" style="width:100%;background:#0f1218;color:inherit;border:1px solid var(--border);border-radius:10px" readonly></textarea>
+            <p class="muted small">To edit manually, export → change JSON → import.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Logs (admin-guarded) -->
+    <section id="tab-logs" class="panel">
+      <div class="card">
+        <h3>Logs</h3>
+        <div class="grid three">
+          <div>
+            <label>Search</label>
+            <input type="text" id="log-search" placeholder="keyword / session">
+          </div>
+          <div>
+            <label>Type</label>
+            <select id="log-type-filter">
+              <option value="">Any</option>
+              <option value="Type 1">Type 1</option>
+            </select>
+          </div>
+          <div class="row gap">
+            <button id="btn-export-logs-csv" class="btn">Export CSV</button>
+            <button id="btn-export-logs-json" class="btn">Export JSON</button>
+            <button id="btn-delete-logs" class="btn danger">Delete All</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="logs-table" class="table small">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Session</th>
+                <th>Type</th>
+                <th>Rows</th>
+                <th>Inputs</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Help -->
+    <section id="tab-help" class="panel">
+      <div class="card">
+        <h3>Help & Notes</h3>
+
+        <h4>What it does</h4>
+        <ul>
+          <li>Takes <b>keyword1…keywordN</b> inputs and fills them into row templates.</li>
+          <li>Each <b>Type</b> defines its own number of inputs and a fixed 3-column output:
+            <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i>.</li>
+          <li>Runs fully offline. Data lives in <code>localStorage</code>/<code>sessionStorage</code>.</li>
+        </ul>
+
+        <h4>Placeholders & helpers</h4>
+        <ul>
+          <li>Variables: <code>{{keyword1}}</code>…<code>{{keywordN}}</code></li>
+          <li>Helpers: <code>{{today}}</code> (YYYY-MM-DD), <code>{{ts}}</code> (Unix ms)</li>
+          <li>Modifiers: <code>.lower</code>, <code>.upper</code>, <code>.cap</code> (Title Case), <code>.slug</code></li>
+          <li>Examples: <code>{{keyword1.slug}}</code>, <code>{{keyword3.upper}}</code></li>
+          <li>Missing variables resolve to empty strings. Case and spaces preserved.</li>
+        </ul>
+
+        <h4>Copy & export</h4>
+        <ul>
+          <li>Click any preview cell to copy just that cell.</li>
+          <li><b>Copy All</b> copies the Keywords column (one per line).</li>
+          <li>Export outputs as CSV/JSON (filename includes timestamp).</li>
+        </ul>
+
+        <h4>Templates</h4>
+        <ul>
+          <li>Shipped defaults live in a separate file (<code>templates.js</code>). You can <b>Import</b> a <code>templates.json</code> to override, <b>Export</b> current templates, or <b>Reset</b> back to defaults. Actions are available in the Templates tab.</li>
+          <li>To add a new Type, include:
+<pre>{"columns":["Campaign Name","Adset Name","Keywords"],
+"rows":[{"campaign":"...","adset":"...","keywords":"..."}]}</pre>
+          </li>
+          <li>Inputs appear automatically based on the highest <code>{{keywordX}}</code> used in the selected Type.</li>
+        </ul>
+
+        <h4>General guidance</h4>
+        <ul>
+          <li>Designed for internal, offline use. Template JSON and output files contain only the data you provide in the UI.</li>
+          <li>Team can keep canonical templates in version control and distribute as a <code>templates.json</code> when needed.</li>
+        </ul>
+      </div>
+
+        <div class="card">
+                <h3>Prompt: Generate New Type JSON Template</h3>
+                <p class="muted small">
+                    Copy this into ChatGPT whenever you need a new template definition (Type 2, Type 3, etc.)  
+                    Provide a table (or image of a table) with columns: Campaign Name, Adset Name, Keywords.
+                </p>
+                <pre><code>You are helping me maintain JSON templates for my internal Keyword Generator tool.  
+
+                I will share a table (or image) with three columns:
+                - Campaign Name
+                - Adset Name
+                - Keywords
+
+                Your task:
+                1. Convert each row into a JSON object with keys: "campaign", "adset", "keywords".
+                2. Wrap all rows into this format:
+
+                "Type X": {
+                "columns": ["Campaign Name", "Adset Name", "Keywords"],
+                "rows": [
+                    { "campaign":"...", "adset":"...", "keywords":"..." },
+                    { "campaign":"...", "adset":"...", "keywords":"..." }
+                ]
+                }
+
+                Rules:
+                - Keep text, spacing, and case exactly as shown in the table.
+                - Use placeholders like {{keyword1}}, {{keyword2}}, {{keyword3}} where appropriate.
+                - If a table cell is empty, set it as "" in JSON.
+                - Return only valid JSON — no commentary.
+
+                Example output (from Type 2):
+
+                "Type 2": {
+                "columns": ["Campaign Name", "Adset Name", "Keywords"],
+                "rows": [
+                    {"campaign":"BRAND_{{keyword1.slug}}_{{keyword2.slug}}_search","adset":"keyword1_keyword2","keywords":"{{keyword1}} {{keyword2}}"},
+                    {"campaign":"BRAND_{{keyword1.slug}}_{{keyword2.slug}}_search","adset":"keyword1_keyword2_keyword3","keywords":"{{keyword1}} {{keyword2}} {{keyword3}}"}
+                    // ... continue for all rows
+                ]
+                }</code></pre>
+        </div>
+
+
+    </section>
+  </main>
+
+  <!-- Hashes:
+       - KG_PASS_HASH  → user pass to unlock app
+       - KG_ADMIN_HASH → admin pass to open Logs & delete logs
+       Default hashes below are for the password: admin123
+  -->
+  <script>
+    window.KG_PASS_HASH  = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
+    window.KG_ADMIN_HASH = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
+  </script>
+
+  <!-- shipped default templates (separate from logic) -->
+  <script src="templates.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

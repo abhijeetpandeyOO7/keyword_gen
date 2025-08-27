@@ -1,0 +1,33 @@
+{
+  "types": {
+    "Type 1": {
+      "columns": ["Campaign Name", "Adset Name", "Keywords"],
+      "rows": [
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1","keywords":"{{keyword1}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_keyword2","keywords":"{{keyword1}} {{keyword2}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_keyword3","keywords":"{{keyword1}} {{keyword3}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_keyword4","keywords":"{{keyword1}} {{keyword4}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_keyword5","keywords":"{{keyword1}} {{keyword5}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_keyword6","keywords":"{{keyword1}} {{keyword6}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_keyword7","keywords":"{{keyword1}} {{keyword7}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_keyword8","keywords":"{{keyword1}} {{keyword8}}"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_amenities","keywords":"{{keyword1}} amenities"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_best_offers","keywords":"{{keyword1}} best offers"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_booking","keywords":"{{keyword1}} booking"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_construction_status","keywords":"{{keyword1}} construction status"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_floor_plan","keywords":"{{keyword1}} floor plan"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_launch_price","keywords":"{{keyword1}} launch price"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_launch_date","keywords":"{{keyword1}} launch date"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_location","keywords":"{{keyword1}} location"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_master_plan","keywords":"{{keyword1}} master plan"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_payment_plan","keywords":"{{keyword1}} payment plan"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_possession_date","keywords":"{{keyword1}} possession date"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_price","keywords":"{{keyword1}} price"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_rera_number","keywords":"{{keyword1}} rera number"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_reviews","keywords":"{{keyword1}} reviews"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_site_visit","keywords":"{{keyword1}} site visit"},
+        {"campaign":"BRAND_{{keyword1.slug}}_search","adset":"keyword1_specifications","keywords":"{{keyword1}} specifications"}
+      ]
+    }
+  }
+}
