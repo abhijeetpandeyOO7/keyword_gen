@@ -127,15 +127,9 @@
   const sha256Hex = async (text) => {
     const enc=new TextEncoder().encode(text);
     const buf=await crypto.subtle.digest('SHA-256',enc);
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).toString(16).padStart(2,'0')).join('');
-  };
-  // (fix above: correct hex conversion—keeping original behavior)
-  const __sha256Hex = async (text) => {
-    const enc=new TextEncoder().encode(text);
-    const buf=await crypto.subtle.digest('SHA-256',enc);
     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
   };
-  async function tryAuth(){ const hex=await __sha256Hex(gatePass.value||''); if(hex===PASS_HASH){ state.authed=true; gateEl.classList.add('hidden'); init(); } else { gateErr.hidden=false; gatePass.select(); } }
+  async function tryAuth(){ const hex=await sha256Hex(gatePass.value||''); if(hex===PASS_HASH){ state.authed=true; gateEl.classList.add('hidden'); init(); } else { gateErr.hidden=false; gatePass.select(); } }
   gateBtn.addEventListener('click',tryAuth);
   gatePass.addEventListener('keydown',e=>{if(e.key==='Enter') tryAuth();});
   qs('#lock').addEventListener('click',()=>{ location.reload(); });
@@ -144,13 +138,13 @@
   async function ensureAdmin() {
     const input = prompt('Admin password required:');
     if(input===null) return false;
-    try{ const hex = await __sha256Hex(input); if(hex===ADMIN_HASH){ state.adminAuthed=true; return true; } }catch{}
+    try{ const hex = await sha256Hex(input); if(hex===ADMIN_HASH){ state.adminAuthed=true; return true; } }catch{}
     alert('Incorrect admin password.'); return false;
   }
   async function confirmAdminDelete() {
     const input = prompt('Confirm delete ALL logs.\nEnter ADMIN password to proceed:');
     if(input===null) return false;
-    try{ const hex = await __sha256Hex(input); return hex===ADMIN_HASH; }catch{ return false; }
+    try{ const hex = await sha256Hex(input); return hex===ADMIN_HASH; }catch{ return false; }
   }
 
   // ===== Storage =====
@@ -253,27 +247,6 @@
     return v;
   }
 
-  // === NEW: helpers to skip rows that reference blank keywords ===
-  const KEYWORD_RE = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
-  function requiredKeywordIndicesForRow(row){
-    const set = new Set();
-    ['campaign','adset','keywords'].forEach(field=>{
-      const str = row[field] || '';
-      const matches = [...String(str).matchAll(KEYWORD_RE)];
-      matches.forEach(m => set.add(Number(m[1])));
-    });
-    return set;
-  }
-  function rowHasAllRequiredKeywords(row, vars){
-    const req = requiredKeywordIndicesForRow(row);
-    for (const idx of req){
-      const key = 'keyword'+idx;
-      if (!vars[key]) return false; // skip if any referenced keyword is blank
-    }
-    return true;
-  }
-  // ==============================================
-
   // ===== Preview (safe DOM build + copy) =====
   function renderPreview(){
     const tbody = qs('#preview-table tbody'); if(!tbody) return;
@@ -284,8 +257,6 @@
     const vars = collectVars();
 
     rows.forEach(r=>{
-      if (!rowHasAllRequiredKeywords(r, vars)) return; // SKIP rows with blank referenced keywords
-
       const tr = document.createElement('tr');
 
       const td1 = document.createElement('td');
@@ -329,10 +300,7 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    // only include rows whose referenced keywords are all filled
-    const lines = rows
-      .filter(r => rowHasAllRequiredKeywords(r, vars))
-      .map(r => evaluateTemplate(r.keywords, vars));
+    const lines = rows.map(r => evaluateTemplate(r.keywords, vars));
     const ok = await copyText(lines.join('\n'));
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
@@ -354,8 +322,7 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    // SKIP rows with blank referenced keywords
-    return rows.filter(r=>rowHasAllRequiredKeywords(r, vars)).map(r=>({
+    return rows.map(r=>({
       campaign: evaluateTemplate(r.campaign, vars),
       adset:    evaluateTemplate(r.adset, vars),
       keywords: evaluateTemplate(r.keywords, vars)
