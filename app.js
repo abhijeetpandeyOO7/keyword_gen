@@ -8,10 +8,10 @@
   // Force re-login on every refresh
   try { sessionStorage.removeItem('kg_auth'); } catch {}
 
-  // ===== Default Templates (Type 1 with keyword8) =====
+  // ===== Default Templates (legacy Type 1 with keyword8) =====
   const DEFAULT_TEMPLATES = {
     types: {
-      "Type 1": {
+      "Type 1 (legacy)": {
         columns: ["Campaign Name", "Adset Name", "Keywords"],
         rows: [
           {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1",                 keywords:"{{keyword1}}"},
@@ -60,6 +60,20 @@
   const escapeHtml = (s='') => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const escapeCsv = v => /[",\n]/.test(String(v??'')) ? `"${String(v).replace(/"/g,'""')}"` : String(v??'');
   const fmtDate = ts => new Date(ts).toLocaleString();
+
+  // Transform helpers (NEW)
+  const toLowerUnderscore = (s='') =>
+    String(s).toLowerCase().replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
+  const cleanAdsCopy = (s='') => {
+    let out = String(s);
+    // collapse repeated slashes/spaces caused by missing vars
+    out = out.replace(/\s*\/\s*/g,' / ');     // normalize slashes
+    out = out.replace(/(?:\s*\/\s*){2,}/g,' / ');
+    out = out.replace(/\s{2,}/g,' ').trim();  // collapse spaces
+    out = out.replace(/^\/\s*|\s*\/$/g,'');   // trim stray leading/trailing slashes
+    // Title Case per requirement
+    return titleCase(out);
+  };
 
   // Safer storage helpers
   const lsGet = (k, fallback) => {
@@ -154,14 +168,35 @@
     const stored = lsGet(STORAGE.templates, null);
     let result = (stored && stored.types) ? stored : JSON.parse(JSON.stringify(shipped));
 
+    // merge in any newly shipped types/fields
     if (shipped && shipped.types) {
       result.types = result.types || {};
       Object.keys(shipped.types).forEach(t => {
         if (!result.types[t]) {
           result.types[t] = shipped.types[t];
         } else {
+          // ensure columns / variables / ads structures exist if shipped adds them
           if (!Array.isArray(result.types[t].columns) && Array.isArray(shipped.types[t].columns)) {
             result.types[t].columns = shipped.types[t].columns;
+          }
+          if (!result.types[t].variables && shipped.types[t].variables) {
+            result.types[t].variables = shipped.types[t].variables;
+          }
+          if (!result.types[t].searchRows && shipped.types[t].searchRows) {
+            result.types[t].searchRows = shipped.types[t].searchRows;
+          }
+          if (!result.types[t].adsRows && shipped.types[t].adsRows) {
+            result.types[t].adsRows = shipped.types[t].adsRows;
+          }
+          if (!result.types[t].adsColumns && shipped.types[t].adsColumns) {
+            result.types[t].adsColumns = shipped.types[t].adsColumns;
+          }
+          // back-compat: support older 'rows' + 'adsCopy'
+          if (!result.types[t].rows && shipped.types[t].rows) {
+            result.types[t].rows = shipped.types[t].rows;
+          }
+          if (!result.types[t].adsCopy && shipped.types[t].adsCopy) {
+            result.types[t].adsCopy = shipped.types[t].adsCopy;
           }
         }
       });
@@ -179,13 +214,57 @@
     loadTemplates();
     qs('#session-id').value = state.sessionId;
     populateTypeSelect();
-    renderKeywordInputs();
+    renderInputsForType();
     bindShortcuts();
-    /* ensure preview respects filtering even on first load */
-    renderPreview();
+    renderPreview();          // both previews respect filters on first load
+    renderAdsCopyPreview();
   }
 
-  // ===== Dynamic keywords =====
+  // ===== Input builders (support variables OR legacy keywordN) =====
+  function typeHasVariables(typeName){
+    return !!(state.templates.types[typeName] && Array.isArray(state.templates.types[typeName].variables));
+  }
+
+  function renderInputsForType(){
+    const typeName = qs('#in-type').value;
+    const box = qs('#kw-box'); box.innerHTML = '';
+
+    if (typeHasVariables(typeName)) {
+      const vars = state.templates.types[typeName].variables;
+      vars.forEach(label => {
+        const clean = label.replace(/^\{|\}$/g,''); // tolerate labels listed with braces
+        const id = 'in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `<label>${escapeHtml(clean)}</label><input type="text" id="${id}" placeholder="">`;
+        box.appendChild(wrap);
+      });
+    } else {
+      // legacy keywordN auto-range
+      const maxN = maxKeywordIndexInType(typeName);
+      for(let i=1;i<=maxN;i++){
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `<label>keyword${i} ${i===1?'(required)':''}</label><input type="text" id="in-keyword${i}" placeholder="">`;
+        box.appendChild(wrap);
+      }
+    }
+
+    // Wire listeners
+    qsa('#kw-box input').forEach(inp=>{
+      inp.addEventListener('input', ()=>{ renderPreview(); renderAdsCopyPreview(); scheduleAutoLog(); });
+      inp.addEventListener('change', ()=>{ renderPreview(); renderAdsCopyPreview(); scheduleAutoLog(true); });
+    });
+  }
+
+  function populateTypeSelect(){
+    const sel=qs('#in-type');
+    qsa('option', sel).forEach((o,i)=>{ if(i>0) o.remove(); }); // keep first option as-is
+    Object.keys(state.templates.types).forEach(t=>{
+      if (t !== sel.options[0].value){ const o=document.createElement('option'); o.value=t; o.textContent=t; sel.appendChild(o); }
+    });
+    sel.addEventListener('change', ()=>{ renderInputsForType(); renderPreview(); renderAdsCopyPreview(); autoLogEvent(); });
+  }
+
+  // ===== Helpers for legacy keywords =====
   function maxKeywordIndexInType(typeName){
     const type = state.templates.types[typeName];
     if(!type) return 3;
@@ -193,33 +272,13 @@
     const m = [...scan.matchAll(/{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi)].map(x=>Number(x[1]));
     return m.length ? Math.max(...m) : 3;
   }
-  function renderKeywordInputs(){
-    const typeName = qs('#in-type').value;
-    const maxN = maxKeywordIndexInType(typeName);
-    const box = qs('#kw-box'); box.innerHTML = '';
-    for(let i=1;i<=maxN;i++){
-      const wrap = document.createElement('div');
-      wrap.innerHTML = `<label>keyword${i} ${i===1?'(required)':''}</label><input type="text" id="in-keyword${i}" placeholder="">`;
-      box.appendChild(wrap);
-    }
-    qsa('input[id^="in-keyword"]').forEach(inp=>{
-      inp.addEventListener('input', ()=>{ renderPreview(); scheduleAutoLog(); });
-      inp.addEventListener('change', ()=>{ renderPreview(); scheduleAutoLog(true); });
-    });
-  }
-  function populateTypeSelect(){
-    const sel=qs('#in-type');
-    qsa('option', sel).forEach((o,i)=>{ if(i>0) o.remove(); }); // keep Type 1
-    Object.keys(state.templates.types).forEach(t=>{
-      if (t !== 'Type 1'){ const o=document.createElement('option'); o.value=t; o.textContent=t; sel.appendChild(o); }
-    });
-    sel.addEventListener('change', ()=>{ renderKeywordInputs(); renderPreview(); autoLogEvent(); });
-  }
 
-  // ===== Template engine =====
+  // ===== Template engine (supports both syntaxes) =====
   function evaluateTemplate(tpl, vars){
     if(!tpl) return '';
-    return tpl.replace(/{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}/g, (_m, expr) => {
+
+    // 1) double-curly legacy with modifiers
+    tpl = tpl.replace(/{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}/g, (_m, expr) => {
       const parts = expr.split('.'); const key = parts.shift();
       let val = ({...vars, today:todayYMD(), ts:timestamp()})[key];
       if(val==null) val='';
@@ -231,96 +290,242 @@
       });
       return String(val);
     });
+
+    // 2) single-curly named variables (exact label match inside the braces)
+    tpl = tpl.replace(/{\s*([^{}]+?)\s*}/g, (_m, labelRaw) => {
+      const label = labelRaw.replace(/^\{|\}$/g,''); // normalize
+      const v = vars[label];
+      return v==null ? '' : String(v);
+    });
+
+    return tpl;
   }
+
+  // ===== Collect variables from inputs (both kinds) =====
   function collectVars(){
     const v = {};
+
+    // legacy keywordN
     qsa('input[id^="in-keyword"]').forEach(inp=>{
       const n = inp.id.match(/in-keyword(\d+)/)[1];
       v['keyword'+n] = inp.value.trim();
     });
+
+    // named variables
+    const typeName = qs('#in-type').value;
+    if (typeHasVariables(typeName)) {
+      const vars = state.templates.types[typeName].variables;
+      vars.forEach(label => {
+        const clean = label.replace(/^\{|\}$/g,''); // allow braces in variable list
+        const id = '#in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
+        const el = qs(id);
+        v[clean] = (el?.value ?? '').trim();
+      });
+    }
+
     return v;
   }
 
   /* =========================
-     STRICT row filtering logic
+     Row filtering logic
      ========================= */
-  // 1) placeholders like {{keyword7}} and {{keyword7.slug}}
+  // a) placeholders like {{keyword7}} and {{keyword7.slug}}
   function extractKeywordIndexesFromPlaceholders(str=''){
     const set = new Set();
     const re = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
     let m; while((m = re.exec(str))){ set.add(Number(m[1])); }
     return set;
   }
-  // 2) literal tokens like keyword7, keyword1_keyword8, etc.
+  // b) literal tokens like keyword7, keyword1_keyword8, etc. (legacy)
   function extractKeywordIndexesFromLiterals(str=''){
     const set = new Set();
-    const re = /(^|[^a-z0-9])keyword(\d+)(?=$|[^a-z0-9])/gi; // underscores count as non-alnum
+    const re = /(^|[^a-z0-9])keyword(\d+)(?=$|[^a-z0-9])/gi;
     let m; while((m = re.exec(str))){ set.add(Number(m[2])); }
     return set;
   }
-  function extractAllKeywordIndexes(str=''){
-    const a = extractKeywordIndexesFromPlaceholders(str);
-    const b = extractKeywordIndexesFromLiterals(str);
-    return new Set([...a, ...b]);
+  // c) named variable labels inside { … }
+  function extractNamedLabels(str=''){
+    const set = new Set();
+    const re = /{\s*([^{}]+?)\s*}/g;
+    let m; while((m = re.exec(str))){ set.add(m[1].replace(/^\{|\}$/g,'')); }
+    return set;
   }
-  function requiredKeywordsForRow(row){
-    const s1 = extractAllKeywordIndexes(row.campaign || '');
-    const s2 = extractAllKeywordIndexes(row.adset || '');
-    const s3 = extractAllKeywordIndexes(row.keywords || '');
-    return new Set([...s1, ...s2, ...s3]);
+
+  function requiredRefsForSearchRow(row){
+    const s1p = extractKeywordIndexesFromPlaceholders(row.campaign || '');
+    const s2p = extractKeywordIndexesFromPlaceholders(row.adset || '');
+    const s3p = extractKeywordIndexesFromPlaceholders(row.keywords || '');
+    const s1l = extractKeywordIndexesFromLiterals(row.campaign || '');
+    const s2l = extractKeywordIndexesFromLiterals(row.adset || '');
+    const s3l = extractKeywordIndexesFromLiterals(row.keywords || '');
+    const s1n = extractNamedLabels(row.campaign || '');
+    const s2n = extractNamedLabels(row.adset || '');
+    const s3n = extractNamedLabels(row.keywords || '');
+    return {
+      keywordIdx: new Set([...s1p, ...s2p, ...s3p, ...s1l, ...s2l, ...s3l]),
+      named:      new Set([...s1n, ...s2n, ...s3n])
+    };
   }
-  function rowHasAllKeywords(row, vars){
-    const req = requiredKeywordsForRow(row);
-    for (const idx of req){
+  function requiredRefsForAdsRow(row){
+    const n = extractNamedLabels(row.copy || '');
+    const kp = extractKeywordIndexesFromPlaceholders(row.copy || '');
+    const kl = extractKeywordIndexesFromLiterals(row.copy || '');
+    return { keywordIdx: new Set([...kp, ...kl]), named: n };
+  }
+
+  function rowHasAllVars(refs, vars){
+    for (const idx of refs.keywordIdx){
       const v = vars['keyword'+idx];
-      if (!v || !String(v).trim()) return false; // any missing -> remove row
+      if (!v || !String(v).trim()) return false;
+    }
+    for (const label of refs.named){
+      const v = vars[label];
+      if (v == null || !String(v).trim()) return false;
     }
     return true;
   }
-  function filterRowsByKeywords(rows, vars){
-    return rows.filter(r => rowHasAllKeywords(r, vars));
+
+  function filterSearchRowsByVars(rows, vars){
+    return rows.filter(r => rowHasAllVars(requiredRefsForSearchRow(r), vars));
+  }
+  // NOTE: Ads rows are NOT filtered anymore (always show all 54)
+
+  // ===== Ensure Ads table (and toolbar) exist in DOM =====
+  function ensureAdsTable(){
+    const previewCard = qs('#preview-table')?.closest('.card');
+    if(!previewCard) return;
+    if (!qs('#ads-copy-block')) {
+      const wrap = document.createElement('div');
+      wrap.id = 'ads-copy-block';
+      wrap.innerHTML = `
+        <h3 style="margin-top:1rem">Ads Copy</h3>
+        <div class="row gap" id="ads-toolbar" style="margin: .25rem 0 .5rem 0;">
+          <button type="button" class="btn" id="btn-ads-copy-all">Copy All (Ads)</button>
+          <button type="button" class="btn" id="btn-ads-export-csv">Export CSV (Ads)</button>
+          <button type="button" class="btn" id="btn-ads-export-json">Export JSON (Ads)</button>
+        </div>
+        <div class="table-wrap" id="adscopy-wrap">
+          <table id="ads-table" class="table">
+            <thead><tr><th>Particulars</th><th>Ads Copy</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>`;
+      previewCard.appendChild(wrap);
+
+      // Wire Ads toolbar once
+      qs('#btn-ads-copy-all').addEventListener('click', async ()=>{
+        const rows = collectAdsExportRows();
+        const header = ['Particulars','Ads Copy'];
+        const lines = [header.map(escapeCsv).join(',')];
+        rows.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
+        const ok = await copyText(lines.join('\n'));
+        autoLogEvent();
+        if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
+      });
+      qs('#btn-ads-export-csv').addEventListener('click', ()=>{
+        const rows = collectAdsExportRows();
+        const header = ['Particulars','Ads Copy'];
+        const lines = [header.map(escapeCsv).join(',')];
+        rows.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
+        saveFile(fileName('ads_copy','csv'), lines.join('\n'), 'text/csv');
+        autoLogEvent();
+      });
+      qs('#btn-ads-export-json').addEventListener('click', ()=>{
+        const rows = collectAdsExportRows();
+        saveFile(fileName('ads_copy','json'), JSON.stringify(rows, null, 2), 'application/json');
+        autoLogEvent();
+      });
+    }
   }
 
-  // ===== Preview (safe DOM build + copy) =====
+  // ===== Preview (main 3-column) =====
+  function getSearchRows(def){
+    // Prefer new structure
+    if (Array.isArray(def?.searchRows)) return def.searchRows;
+    // Fallback to legacy
+    if (Array.isArray(def?.rows)) return def.rows;
+    return [];
+  }
   function renderPreview(){
     const tbody = qs('#preview-table tbody'); if(!tbody) return;
     tbody.innerHTML='';
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName];
-    const rows = def.rows || [];
-    const vars = collectVars();
+    if(!def) return;
 
-    const visibleRows = filterRowsByKeywords(rows, vars);
+    const rows = getSearchRows(def);
+    const vars = collectVars();
+    const visibleRows = filterSearchRowsByVars(rows, vars);
 
     visibleRows.forEach(r=>{
       const tr = document.createElement('tr');
 
       const td1 = document.createElement('td');
       td1.className = 'copyable';
-      const c = evaluateTemplate(r.campaign, vars);
-      td1.dataset.copy = c;
-      const code1 = document.createElement('code');
-      code1.textContent = c;
-      td1.appendChild(code1);
+      let c = evaluateTemplate(r.campaign, vars);
+      c = toLowerUnderscore(c);
+      td1.dataset.copy = c; td1.appendChild(Object.assign(document.createElement('code'),{textContent:c}));
 
       const td2 = document.createElement('td');
       td2.className = 'copyable';
-      const a = evaluateTemplate(r.adset, vars);
-      td2.dataset.copy = a;
-      const code2 = document.createElement('code');
-      code2.textContent = a;
-      td2.appendChild(code2);
+      let a = evaluateTemplate(r.adset, vars);
+      a = toLowerUnderscore(a);
+      td2.dataset.copy = a; td2.appendChild(Object.assign(document.createElement('code'),{textContent:a}));
 
       const td3 = document.createElement('td');
       td3.className = 'copyable';
-      const k = evaluateTemplate(r.keywords, vars);
-      td3.dataset.copy = k;
-      td3.textContent = k;
+      let k = evaluateTemplate(r.keywords, vars);
+      k = toLowerUnderscore(k);
+      td3.dataset.copy = k; td3.textContent = k;
 
       tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
       tbody.appendChild(tr);
     });
   }
+
+  // ===== Ads Copy Preview (2-column) =====
+  function getAdsRows(def){
+    // New structure: adsRows
+    if (Array.isArray(def?.adsRows)) return def.adsRows;
+    // Back-compat: adsCopy.rows
+    if (def?.adsCopy && Array.isArray(def.adsCopy.rows)) {
+      // normalize to {particular, copy}
+      return def.adsCopy.rows.map(x => ({
+        particular: x.particulars ?? x.particular ?? '',
+        copy: x.copy ?? ''
+      }));
+    }
+    return [];
+  }
+  function renderAdsCopyPreview(){
+    ensureAdsTable();
+    const tbody = qs('#ads-table tbody'); if(!tbody) return;
+    tbody.innerHTML='';
+    const typeName = qs('#in-type').value;
+    const def = state.templates.types[typeName]; if(!def) return;
+
+    const rows = getAdsRows(def);
+    const vars = collectVars();
+
+    rows.forEach(r=>{
+      const tr = document.createElement('tr');
+
+      const td1 = document.createElement('td');
+      td1.textContent = r.particular ?? r.particulars ?? '';
+
+      const td2 = document.createElement('td');
+      let out = evaluateTemplate(r.copy || '', vars); // blanks become empty
+      out = cleanAdsCopy(out);
+      td2.className = 'copyable';
+      td2.dataset.copy = out;
+      td2.textContent = out;
+
+      tr.appendChild(td1); tr.appendChild(td2);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // cell click-to-copy (both tables)
   document.addEventListener('click', async (e)=>{
     const td = e.target.closest('td.copyable'); if(!td) return;
     const text = td.dataset.copy ?? td.textContent.trim();
@@ -330,21 +535,22 @@
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   }, {capture:true});
 
-  // ===== Buttons / export =====
+  // ===== Buttons / export (SEARCH table only) =====
   const fileName=(base,ext)=>`${base}_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
+
+  // Copy All (Search): copy ALL columns as CSV
   qs('#btn-copy-all').addEventListener('click',async ()=> {
-    const typeName = qs('#in-type').value;
-    const vars=collectVars();
-    const rows = state.templates.types[typeName].rows || [];
-    const visibleRows = filterRowsByKeywords(rows, vars);
-    const lines = visibleRows.map(r => evaluateTemplate(r.keywords, vars));
+    const out = collectExportRows(); // search only
+    const header = Object.keys(out[0]||{campaign:'',adset:'',keywords:''});
+    const lines = [header.map(escapeCsv).join(',')];
+    out.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
     const ok = await copyText(lines.join('\n'));
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   });
   qs('#btn-export-json').addEventListener('click',()=>{
     const out = collectExportRows();
-    saveFile(fileName('outputs','json'), JSON.stringify(out, null, 2), 'application/json');
+    saveFile(fileName('outputs_search','json'), JSON.stringify(out, null, 2), 'application/json');
     autoLogEvent();
   });
   qs('#btn-export-csv').addEventListener('click',()=>{
@@ -352,19 +558,36 @@
     const header = Object.keys(out[0]||{campaign:'',adset:'',keywords:''});
     const lines = [header.map(escapeCsv).join(',')];
     out.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
-    saveFile(fileName('outputs','csv'), lines.join('\n'), 'text/csv');
+    saveFile(fileName('outputs_search','csv'), lines.join('\n'), 'text/csv');
     autoLogEvent();
   });
+
+  // Build export rows (SEARCH) with transformations applied
   function collectExportRows(){
     const typeName = qs('#in-type').value;
     const vars=collectVars();
-    const rows = state.templates.types[typeName].rows || [];
-    const visibleRows = filterRowsByKeywords(rows, vars);
-    return visibleRows.map(r=>({
-      campaign: evaluateTemplate(r.campaign, vars),
-      adset:    evaluateTemplate(r.adset, vars),
-      keywords: evaluateTemplate(r.keywords, vars)
-    }));
+    const rows = getSearchRows(state.templates.types[typeName]);
+    const visible = filterSearchRowsByVars(rows, vars);
+    return visible.map(r=>{
+      let campaign = toLowerUnderscore(evaluateTemplate(r.campaign, vars));
+      let adset    = toLowerUnderscore(evaluateTemplate(r.adset, vars));
+      let keywords = toLowerUnderscore(evaluateTemplate(r.keywords, vars));
+      return { campaign, adset, keywords };
+    });
+  }
+
+  // Ads Copy export helpers
+  function collectAdsExportRows(){
+    const typeName = qs('#in-type').value;
+    const def = state.templates.types[typeName];
+    const rows = getAdsRows(def);
+    const vars = collectVars();
+    return rows.map(r=>{
+      const particulars = r.particular ?? r.particulars ?? '';
+      const copyRaw = evaluateTemplate(r.copy || '', vars);
+      const copy = cleanAdsCopy(copyRaw);
+      return { "Particulars": particulars, "Ads Copy": copy };
+    });
   }
 
   // ===== Logs (admin-guarded actions) =====
@@ -423,7 +646,9 @@
     const entry = {
       id:(crypto.randomUUID&&crypto.randomUUID())||(Date.now()+Math.random()).toString(36),
       at:Date.now(), sessionId:state.sessionId, type:typeName,
-      inputs: collectVars(), outputs: collectExportRows(), reason
+      inputs: collectVars(), 
+      outputs: collectExportRows(), // search outputs (transformed)
+      reason
     };
     const logs=getLogs(); logs.unshift(entry); setLogs(logs); if (qs('#tab-logs').classList.contains('active')) renderLogs();
   }
@@ -462,7 +687,9 @@
         state.templates = JSON.parse(JSON.stringify(SHIPPED_DEFAULTS));
         localStorage.setItem(STORAGE.templates, JSON.stringify(state.templates));
         populateTypeSelect();
-        renderKeywordInputs();
+        renderInputsForType();
+        renderPreview();
+        renderAdsCopyPreview();
       } catch {}
     }
 
@@ -500,7 +727,9 @@
     state.templates = obj;
     persistTemplates();
     populateTypeSelect();
-    renderKeywordInputs();
+    renderInputsForType();
+    renderPreview();
+    renderAdsCopyPreview();
     buildLogTypeFilter();
     refreshTemplatesPreview();
     alert('Templates loaded.');
