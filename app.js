@@ -124,7 +124,7 @@
   const sha256Hex = async (text) => {
     const enc=new TextEncoder().encode(text);
     const buf=await crypto.subtle.digest('SHA-256',enc);
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).toPadStart?.(2,'0') ?? b.toString(16).padStart(2,'0')).join('');
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
   };
   async function tryAuth(){ const hex=await sha256Hex(gatePass.value||''); if(hex===PASS_HASH){ state.authed=true; gateEl.classList.add('hidden'); init(); } else { gateErr.hidden=false; gatePass.select(); } }
   gateBtn.addEventListener('click',tryAuth);
@@ -145,7 +145,6 @@
   }
 
   // ===== Storage =====
-  // (auto-merge shipped defaults with stored data)
   const loadTemplates=()=>{
     const shipped = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
       && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
@@ -182,6 +181,8 @@
     populateTypeSelect();
     renderKeywordInputs();
     bindShortcuts();
+    /* ensure preview respects filtering even on first load */
+    renderPreview();
   }
 
   // ===== Dynamic keywords =====
@@ -243,16 +244,29 @@
   /* =========================
      STRICT row filtering logic
      ========================= */
-  function extractKeywordIndexes(str=''){
+  // 1) placeholders like {{keyword7}} and {{keyword7.slug}}
+  function extractKeywordIndexesFromPlaceholders(str=''){
     const set = new Set();
     const re = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
     let m; while((m = re.exec(str))){ set.add(Number(m[1])); }
     return set;
   }
+  // 2) literal tokens like keyword7, keyword1_keyword8, etc.
+  function extractKeywordIndexesFromLiterals(str=''){
+    const set = new Set();
+    const re = /(^|[^a-z0-9])keyword(\d+)(?=$|[^a-z0-9])/gi; // underscores count as non-alnum
+    let m; while((m = re.exec(str))){ set.add(Number(m[2])); }
+    return set;
+  }
+  function extractAllKeywordIndexes(str=''){
+    const a = extractKeywordIndexesFromPlaceholders(str);
+    const b = extractKeywordIndexesFromLiterals(str);
+    return new Set([...a, ...b]);
+  }
   function requiredKeywordsForRow(row){
-    const s1 = extractKeywordIndexes(row.campaign || '');
-    const s2 = extractKeywordIndexes(row.adset || '');
-    const s3 = extractKeywordIndexes(row.keywords || '');
+    const s1 = extractAllKeywordIndexes(row.campaign || '');
+    const s2 = extractAllKeywordIndexes(row.adset || '');
+    const s3 = extractAllKeywordIndexes(row.keywords || '');
     return new Set([...s1, ...s2, ...s3]);
   }
   function rowHasAllKeywords(row, vars){
@@ -531,7 +545,7 @@
     if (addT2Btn && !addT2Btn.__kg_bound) {
       addT2Btn.addEventListener('click', async ()=>{
         if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
-        if(!SHIPPED_DEFAULTS || !SHIPPED_DEFAULTS.types || !SHIPPED_DEFAULT_TEMPLATES.types['Type 2']){
+        if(!SHIPPED_DEFAULTS || !SHIPPED_DEFAULTS.types || !SHIPPED_DEFAULTS.types['Type 2']){
           alert('Type 2 not found in shipped defaults.'); return;
         }
         const next = JSON.parse(JSON.stringify(state.templates || {types:{}}));
