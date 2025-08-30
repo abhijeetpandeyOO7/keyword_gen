@@ -127,7 +127,7 @@
   const sha256Hex = async (text) => {
     const enc=new TextEncoder().encode(text);
     const buf=await crypto.subtle.digest('SHA-256',enc);
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).toPadStart?.(2,'0') ?? b.toString(16).padStart(2,'0')).join('');
   };
   async function tryAuth(){ const hex=await sha256Hex(gatePass.value||''); if(hex===PASS_HASH){ state.authed=true; gateEl.classList.add('hidden'); init(); } else { gateErr.hidden=false; gatePass.select(); } }
   gateBtn.addEventListener('click',tryAuth);
@@ -225,7 +225,7 @@
   // ===== Template engine =====
   function evaluateTemplate(tpl, vars){
     if(!tpl) return '';
-    return tpl.replace(/{{\s*([a-zA-Z0-9_]+(?:\.[a-z]+)*)\s*}}/g, (_m, expr) => {
+    return tpl.replace(/{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}/g, (_m, expr) => {
       const parts = expr.split('.'); const key = parts.shift();
       let val = ({...vars, today:todayYMD(), ts:timestamp()})[key];
       if(val==null) val='';
@@ -247,14 +247,37 @@
     return v;
   }
 
-  // NEW: helper → check if a row references only filled keywords
+  /* =========================
+     ADDED: Row filtering logic
+     ========================= */
+  // Extract the set of keyword indices used in a string (e.g., "{{keyword2.slug}}")
+  function extractKeywordIndexes(str=''){
+    const set = new Set();
+    const re = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
+    let m;
+    while((m = re.exec(str))){ set.add(Number(m[1])); }
+    return set;
+  }
+  // For a row, find all keyword indices referenced across all three columns
+  function requiredKeywordsForRow(row){
+    const s1 = extractKeywordIndexes(row.campaign || '');
+    const s2 = extractKeywordIndexes(row.adset || '');
+    const s3 = extractKeywordIndexes(row.keywords || '');
+    const all = new Set([...s1, ...s2, ...s3]);
+    return all;
+  }
+  // Check if all required keyword inputs are present & non-empty in vars
   function rowHasAllKeywords(row, vars){
-    const checkString = JSON.stringify(row);
-    const matches = [...checkString.matchAll(/{{\s*(keyword\d+)/gi)].map(m=>m[1]);
-    for (let k of matches){
-      if (!vars[k] || vars[k].trim()==='') return false;
+    const req = requiredKeywordsForRow(row);
+    for (const idx of req){
+      const v = vars['keyword'+idx];
+      if (!v || !String(v).trim()) return false;
     }
     return true;
+  }
+  // Filter rows by presence of all referenced keywords
+  function filterRowsByKeywords(rows, vars){
+    return rows.filter(r => rowHasAllKeywords(r, vars));
   }
 
   // ===== Preview (safe DOM build + copy) =====
@@ -266,9 +289,10 @@
     const rows = def.rows || [];
     const vars = collectVars();
 
-    rows.forEach(r=>{
-      if (!rowHasAllKeywords(r, vars)) return; // skip incomplete rows
+    // ADDED: filter out rows that reference any missing/empty keyword
+    const visibleRows = filterRowsByKeywords(rows, vars);
 
+    visibleRows.forEach(r=>{
       const tr = document.createElement('tr');
 
       const td1 = document.createElement('td');
@@ -312,9 +336,9 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    const lines = rows
-      .filter(r => rowHasAllKeywords(r, vars)) // only complete rows
-      .map(r => evaluateTemplate(r.keywords, vars));
+    // ADDED: filter
+    const visibleRows = filterRowsByKeywords(rows, vars);
+    const lines = visibleRows.map(r => evaluateTemplate(r.keywords, vars));
     const ok = await copyText(lines.join('\n'));
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
@@ -336,13 +360,13 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    return rows
-      .filter(r => rowHasAllKeywords(r, vars)) // only complete rows
-      .map(r=>({
-        campaign: evaluateTemplate(r.campaign, vars),
-        adset:    evaluateTemplate(r.adset, vars),
-        keywords: evaluateTemplate(r.keywords, vars)
-      }));
+    // ADDED: filter
+    const visibleRows = filterRowsByKeywords(rows, vars);
+    return visibleRows.map(r=>({
+      campaign: evaluateTemplate(r.campaign, vars),
+      adset:    evaluateTemplate(r.adset, vars),
+      keywords: evaluateTemplate(r.keywords, vars)
+    }));
   }
 
   // ===== Logs (admin-guarded actions) =====
