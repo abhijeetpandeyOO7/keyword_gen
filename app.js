@@ -225,7 +225,7 @@
   // ===== Template engine =====
   function evaluateTemplate(tpl, vars){
     if(!tpl) return '';
-    return tpl.replace(/{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}/g, (_m, expr) => {
+    return tpl.replace(/{{\s*([a-zA-Z0-9_]+(?:\.[a-z]+)*)\s*}}/g, (_m, expr) => {
       const parts = expr.split('.'); const key = parts.shift();
       let val = ({...vars, today:todayYMD(), ts:timestamp()})[key];
       if(val==null) val='';
@@ -247,6 +247,16 @@
     return v;
   }
 
+  // NEW: helper → check if a row references only filled keywords
+  function rowHasAllKeywords(row, vars){
+    const checkString = JSON.stringify(row);
+    const matches = [...checkString.matchAll(/{{\s*(keyword\d+)/gi)].map(m=>m[1]);
+    for (let k of matches){
+      if (!vars[k] || vars[k].trim()==='') return false;
+    }
+    return true;
+  }
+
   // ===== Preview (safe DOM build + copy) =====
   function renderPreview(){
     const tbody = qs('#preview-table tbody'); if(!tbody) return;
@@ -257,6 +267,8 @@
     const vars = collectVars();
 
     rows.forEach(r=>{
+      if (!rowHasAllKeywords(r, vars)) return; // skip incomplete rows
+
       const tr = document.createElement('tr');
 
       const td1 = document.createElement('td');
@@ -300,7 +312,9 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    const lines = rows.map(r => evaluateTemplate(r.keywords, vars));
+    const lines = rows
+      .filter(r => rowHasAllKeywords(r, vars)) // only complete rows
+      .map(r => evaluateTemplate(r.keywords, vars));
     const ok = await copyText(lines.join('\n'));
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
@@ -322,11 +336,13 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    return rows.map(r=>({
-      campaign: evaluateTemplate(r.campaign, vars),
-      adset:    evaluateTemplate(r.adset, vars),
-      keywords: evaluateTemplate(r.keywords, vars)
-    }));
+    return rows
+      .filter(r => rowHasAllKeywords(r, vars)) // only complete rows
+      .map(r=>({
+        campaign: evaluateTemplate(r.campaign, vars),
+        adset:    evaluateTemplate(r.adset, vars),
+        keywords: evaluateTemplate(r.keywords, vars)
+      }));
   }
 
   // ===== Logs (admin-guarded actions) =====
