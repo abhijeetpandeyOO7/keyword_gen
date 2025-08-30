@@ -86,7 +86,6 @@
         await navigator.clipboard.writeText(text); return true;
       }
     } catch {}
-    // fallback
     const ta = document.createElement('textarea');
     ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px';
     document.body.appendChild(ta); ta.focus(); ta.select();
@@ -100,11 +99,9 @@
     nav.addEventListener('click', async (e)=>{
       const btn = e.target.closest('.tab'); if(!btn) return;
       const target = btn.dataset.tab;
-      // ADDED: admin gate for Templates + Logs
       if((target === 'logs' || target === 'templates') && !state.adminAuthed){
         const ok = await ensureAdmin(); if(!ok) return;
       }
-      // /ADDED
       qsa('.tab', nav).forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       qsa('.panel').forEach(p=>p.classList.remove('active'));
@@ -148,9 +145,8 @@
   }
 
   // ===== Storage =====
-  // MODIFIED: loadTemplates now auto-merges shipped defaults (from templates.js) into stored data.
+  // (auto-merge shipped defaults with stored data)
   const loadTemplates=()=>{
-    // Prefer shipped defaults if present; otherwise fall back to DEFAULT_TEMPLATES
     const shipped = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
       && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
       ? window.KG_DEFAULT_TEMPLATES
@@ -159,15 +155,12 @@
     const stored = lsGet(STORAGE.templates, null);
     let result = (stored && stored.types) ? stored : JSON.parse(JSON.stringify(shipped));
 
-    // Merge in any missing types or columns from shipped defaults
     if (shipped && shipped.types) {
       result.types = result.types || {};
       Object.keys(shipped.types).forEach(t => {
         if (!result.types[t]) {
-          // add entire new type (e.g., Type 2)
           result.types[t] = shipped.types[t];
         } else {
-          // ensure columns exist if they were missing (don’t overwrite rows)
           if (!Array.isArray(result.types[t].columns) && Array.isArray(shipped.types[t].columns)) {
             result.types[t].columns = shipped.types[t].columns;
           }
@@ -248,34 +241,28 @@
   }
 
   /* =========================
-     ADDED: Row filtering logic
+     STRICT row filtering logic
      ========================= */
-  // Extract the set of keyword indices used in a string (e.g., "{{keyword2.slug}}")
   function extractKeywordIndexes(str=''){
     const set = new Set();
     const re = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
-    let m;
-    while((m = re.exec(str))){ set.add(Number(m[1])); }
+    let m; while((m = re.exec(str))){ set.add(Number(m[1])); }
     return set;
   }
-  // For a row, find all keyword indices referenced across all three columns
   function requiredKeywordsForRow(row){
     const s1 = extractKeywordIndexes(row.campaign || '');
     const s2 = extractKeywordIndexes(row.adset || '');
     const s3 = extractKeywordIndexes(row.keywords || '');
-    const all = new Set([...s1, ...s2, ...s3]);
-    return all;
+    return new Set([...s1, ...s2, ...s3]);
   }
-  // Check if all required keyword inputs are present & non-empty in vars
   function rowHasAllKeywords(row, vars){
     const req = requiredKeywordsForRow(row);
     for (const idx of req){
       const v = vars['keyword'+idx];
-      if (!v || !String(v).trim()) return false;
+      if (!v || !String(v).trim()) return false; // any missing -> remove row
     }
     return true;
   }
-  // Filter rows by presence of all referenced keywords
   function filterRowsByKeywords(rows, vars){
     return rows.filter(r => rowHasAllKeywords(r, vars));
   }
@@ -289,7 +276,6 @@
     const rows = def.rows || [];
     const vars = collectVars();
 
-    // ADDED: filter out rows that reference any missing/empty keyword
     const visibleRows = filterRowsByKeywords(rows, vars);
 
     visibleRows.forEach(r=>{
@@ -336,7 +322,6 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    // ADDED: filter
     const visibleRows = filterRowsByKeywords(rows, vars);
     const lines = visibleRows.map(r => evaluateTemplate(r.keywords, vars));
     const ok = await copyText(lines.join('\n'));
@@ -360,7 +345,6 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = state.templates.types[typeName].rows || [];
-    // ADDED: filter
     const visibleRows = filterRowsByKeywords(rows, vars);
     return visibleRows.map(r=>({
       campaign: evaluateTemplate(r.campaign, vars),
@@ -459,7 +443,6 @@
   init = function(){
     __init_orig();
 
-    // Seed from shipped defaults if nothing stored yet
     if (!localStorage.getItem(STORAGE.templates) && SHIPPED_DEFAULTS) {
       try {
         state.templates = JSON.parse(JSON.stringify(SHIPPED_DEFAULTS));
@@ -473,7 +456,6 @@
     setupTemplatesPanel();
     refreshTemplatesPreview();
 
-    // ensure preview refresh on tab switch
     const tabs = qs('#tabs');
     if (tabs && !tabs.__kg_templates_listener) {
       tabs.addEventListener('click', (e)=>{
@@ -511,7 +493,6 @@
   }
 
   function setupTemplatesPanel(){
-    // Import JSON (admin required)
     const fileInput = qs('#tpl-file');
     if (fileInput && !fileInput.__kg_bound) {
       fileInput.addEventListener('change', async (e)=>{
@@ -525,7 +506,6 @@
       fileInput.__kg_bound = true;
     }
 
-    // Export JSON (admin required)
     const exportBtn = qs('#tpl-export-json');
     if (exportBtn && !exportBtn.__kg_bound) {
       exportBtn.addEventListener('click', async ()=>{
@@ -536,7 +516,6 @@
       exportBtn.__kg_bound = true;
     }
 
-    // Reset to shipped defaults (admin required)
     const resetBtn = qs('#tpl-reset');
     if (resetBtn && !resetBtn.__kg_bound) {
       resetBtn.addEventListener('click', async ()=>{
@@ -548,12 +527,11 @@
       resetBtn.__kg_bound = true;
     }
 
-    // Quick-add Type 2 from shipped defaults (admin required)
     const addT2Btn = qs('#tpl-add-type2');
     if (addT2Btn && !addT2Btn.__kg_bound) {
       addT2Btn.addEventListener('click', async ()=>{
         if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
-        if(!SHIPPED_DEFAULTS || !SHIPPED_DEFAULTS.types || !SHIPPED_DEFAULTS.types['Type 2']){
+        if(!SHIPPED_DEFAULTS || !SHIPPED_DEFAULTS.types || !SHIPPED_DEFAULT_TEMPLATES.types['Type 2']){
           alert('Type 2 not found in shipped defaults.'); return;
         }
         const next = JSON.parse(JSON.stringify(state.templates || {types:{}}));
