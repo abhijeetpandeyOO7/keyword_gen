@@ -104,7 +104,7 @@
 
         <div class="card">
           <div class="row between align-end">
-            <h3>Preview (Type layout)</h3>
+            <h3>Ads Set</h3>
           </div>
           <div class="table-wrap">
             <table id="preview-table" class="table" role="table" aria-label="Preview">
@@ -199,73 +199,73 @@
       </div>
     </section>
 
-<!-- Help -->
-<section id="tab-help" class="panel" role="tabpanel" aria-labelledby="Help">
-  <div class="card">
-    <h3>Help & Notes</h3>
+    <!-- Help -->
+    <section id="tab-help" class="panel" role="tabpanel" aria-labelledby="Help">
+      <div class="card">
+        <h3>Help & Notes</h3>
 
-    <h4>What it does</h4>
-    <ul>
-      <li>Generates a 3-column Search table — <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i> — for the selected <b>Type</b>.</li>
-      <li>If the Type defines Ads content, a 2-column <b>Ads Copy</b> table — <i>Particulars</i>, <i>Ads Copy</i> — is also shown.</li>
-      <li><b>Types can differ.</b> Each Type provides its own variable labels, sample placeholders, Search rows, and may include (or skip) Ads rows. In menus and filters you’ll see the internal ID with nickname, e.g. <code>Type 1 (Brand_Appartment)</code>.</li>
-      <li>Inputs are created automatically from the Type’s <code>variables</code> list (e.g., <code>BUILDER + PROJECT</code>, <code>CITY</code>) or legacy <code>keywordN</code> usage.</li>
-      <li>Runs fully offline. Templates/logs persist in <code>localStorage</code>; auth state is kept in <code>sessionStorage</code>.</li>
-    </ul>
-
-    <h4>Placeholders & modifiers</h4>
-    <ul>
-      <li><b>Named placeholders</b> (single braces): <code>{VAR NAME}</code> such as <code>{BUILDER + PROJECT}</code>, <code>{CITY}</code>, <code>{PRICE}</code>. These map 1:1 to input labels. <b>No modifiers</b> apply to single-brace placeholders.</li>
-      <li><b>Legacy placeholders</b> (double braces): <code>{{keyword1}}</code>…<code>{{keywordN}}</code> with optional modifiers <code>.lower</code>, <code>.upper</code>, <code>.cap</code> (Title Case), <code>.slug</code>. Examples: <code>{{keyword1.slug}}</code>, <code>{{keyword3.upper}}</code>.</li>
-      <li><b>Built-ins</b> (double-brace only): <code>{{today}}</code> (YYYY-MM-DD) and <code>{{ts}}</code> (Unix ms).</li>
-      <li>Missing variables resolve to empty strings. Case and spaces you type are preserved unless a modifier changes them.</li>
-    </ul>
-
-    <h4>Dynamic sample placeholders</h4>
-    <ul>
-      <li>Each input shows a sample value from the Type’s <code>samples</code> (or <code>sampleValues</code>) in <code>templates.js</code>.</li>
-      <li>Samples are just hints — type your own values; outputs update instantly.</li>
-    </ul>
-
-    <h4>Search output formatting</h4>
-    <ul>
-      <li><b>Campaign Name</b> → normalized to lower-case with underscores.</li>
-      <li><b>Adset Name</b> → normalized to lower-case with underscores.</li>
-      <li><b>Keywords</b> → lower-case with <b>spaces preserved</b> (no underscores) in both preview and exports.</li>
-    </ul>
-
-    <h4>Ads Copy output</h4>
-    <ul>
-      <li>If the Type includes Ads rows, all of them are rendered (they’re not filtered by inputs).</li>
-      <li>Output is tidied for readability (balanced slashes, collapsed spaces, trimmed); Title Case is applied where appropriate.</li>
-      <li>Dedicated toolbar: <b>Copy All (Ads)</b>, <b>Export CSV</b>, <b>Export JSON</b>.</li>
-    </ul>
-
-    <h4>Copy & export</h4>
-    <ul>
-      <li>Click/tap any cell to copy just that cell.</li>
-      <li><b>Copy All (Search)</b> and <b>Copy All (Ads)</b> copy as <b>TSV</b> (tab-separated) so pasting into Sheets/Excel lands in separate columns.</li>
-      <li>Exports:
+        <h4>What it does</h4>
         <ul>
-          <li><b>Search</b>: CSV / JSON (<code>outputs_search.*</code>)</li>
-          <li><b>Ads</b>: CSV / JSON (<code>ads_copy.*</code>)</li>
+          <li>Generates a 3-column Search table — <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i> — for the selected <b>Type</b>.</li>
+          <li>If the Type defines Ads content, a 2-column <b>Ads Copy</b> table — <i>Particulars</i>, <i>Ads Copy</i> — is also shown.</li>
+          <li><b>Types can differ.</b> Each Type provides its own variable labels, sample placeholders, Search rows, and may include (or skip) Ads rows. In menus and filters you’ll see the internal ID with nickname, e.g. <code>Type 1 (Brand_Appartment)</code>.</li>
+          <li>Inputs are created automatically from the Type’s <code>variables</code> list (e.g., <code>BUILDER + PROJECT</code>, <code>CITY</code>) or legacy <code>keywordN</code> usage.</li>
+          <li>Runs fully offline. Templates/logs persist in <code>localStorage</code>; auth state is kept in <code>sessionStorage</code>.</li>
         </ul>
-      </li>
-      <li>Filenames include an ISO timestamp.</li>
-      <li>Shortcuts: <kbd>Ctrl</kbd>+<kbd>S</kbd> Save log · <kbd>Ctrl</kbd>+<kbd>E</kbd> Export CSV (Search)</li>
-    </ul>
 
-    <h4>Logging & security</h4>
-    <ul>
-      <li><b>Auto-log</b> saves snapshots on changes and key actions (toggle in the Generate form).</li>
-      <li><b>Idle lock</b>: the app auto-locks after ~30 minutes of inactivity.</li>
-      <li><b>Admin-gated</b>: <i>Templates</i> and <i>Logs</i> tabs require the admin password.</li>
-    </ul>
+        <h4>Placeholders & modifiers</h4>
+        <ul>
+          <li><b>Named placeholders</b> (single braces): <code>{VAR NAME}</code> such as <code>{BUILDER + PROJECT}</code>, <code>{CITY}</code>, <code>{PRICE}</code>. These map 1:1 to input labels. <b>No modifiers</b> apply to single-brace placeholders.</li>
+          <li><b>Legacy placeholders</b> (double braces): <code>{{keyword1}}</code>…<code>{{keywordN}}</code> with optional modifiers <code>.lower</code>, <code>.upper</code>, <code>.cap</code> (Title Case), <code>.slug</code>. Examples: <code>{{keyword1.slug}}</code>, <code>{{keyword3.upper}}</code>.</li>
+          <li><b>Built-ins</b> (double-brace only): <code>{{today}}</code> (YYYY-MM-DD) and <code>{{ts}}</code> (Unix ms).</li>
+          <li>Missing variables resolve to empty strings. Case and spaces you type are preserved unless a modifier changes them.</li>
+        </ul>
 
-    <h4>Templates workflow</h4>
-    <ul>
-      <li>Defaults load from <code>templates.js</code> at startup. Importing a JSON in the Templates tab overrides those defaults and is saved to <code>localStorage</code>.</li>
-      <li>To define or modify a Type (structure is per-Type), include:
+        <h4>Dynamic sample placeholders</h4>
+        <ul>
+          <li>Each input shows a sample value from the Type’s <code>samples</code> (or <code>sampleValues</code>) in <code>templates.js</code>.</li>
+          <li>Samples are just hints — type your own values; outputs update instantly.</li>
+        </ul>
+
+        <h4>Search output formatting</h4>
+        <ul>
+          <li><b>Campaign Name</b> → normalized to lower-case with underscores.</li>
+          <li><b>Adset Name</b> → normalized to lower-case with underscores.</li>
+          <li><b>Keywords</b> → lower-case with <b>spaces preserved</b> (no underscores) in both preview and exports.</li>
+        </ul>
+
+        <h4>Ads Copy output</h4>
+        <ul>
+          <li>If the Type includes Ads rows, all of them are rendered (they’re not filtered by inputs).</li>
+          <li>Output is tidied for readability (balanced slashes, collapsed spaces, trimmed); Title Case is applied where appropriate.</li>
+          <li>Dedicated toolbar: <b>Copy All (Ads)</b>, <b>Export CSV</b>, <b>Export JSON</b>.</li>
+        </ul>
+
+        <h4>Copy & export</h4>
+        <ul>
+          <li>Click/tap any cell to copy just that cell.</li>
+          <li><b>Copy All (Search)</b> and <b>Copy All (Ads)</b> copy as <b>TSV</b> (tab-separated) so pasting into Sheets/Excel lands in separate columns.</li>
+          <li>Exports:
+            <ul>
+              <li><b>Search</b>: CSV / JSON (<code>outputs_search.*</code>)</li>
+              <li><b>Ads</b>: CSV / JSON (<code>ads_copy.*</code>)</li>
+            </ul>
+          </li>
+          <li>Filenames include an ISO timestamp.</li>
+          <li>Shortcuts: <kbd>Ctrl</kbd>+<kbd>S</kbd> Save log · <kbd>Ctrl</kbd>+<kbd>E</kbd> Export CSV (Search)</li>
+        </ul>
+
+        <h4>Logging & security</h4>
+        <ul>
+          <li><b>Auto-log</b> saves snapshots on changes and key actions (toggle in the Generate form).</li>
+          <li><b>Idle lock</b>: the app auto-locks after ~30 minutes of inactivity.</li>
+          <li><b>Admin-gated</b>: <i>Templates</i> and <i>Logs</i> tabs require the admin password.</li>
+        </ul>
+
+        <h4>Templates workflow</h4>
+        <ul>
+          <li>Defaults load from <code>templates.js</code> at startup. Importing a JSON in the Templates tab overrides those defaults and is saved to <code>localStorage</code>.</li>
+          <li>To define or modify a Type (structure is per-Type), include:
 <pre>{
   "nickname": "Optional_Friendly_Name",
   "columns": ["Campaign Name","Adset Name","Keywords"],   // Search table is always 3 columns
@@ -279,18 +279,18 @@
   "variables": ["BUILDER + PROJECT","LOCATION","..."],    // Exact labels used in { … } placeholders
   "samples": {"BUILDER + PROJECT":"example","LOCATION":"example"}
 }</pre>
-      </li>
-      <li>Legacy fields <code>rows</code> and <code>adsCopy.rows</code> are still supported and auto-normalized internally.</li>
-      <li>In UI lists and filters you’ll see <code>Type ID (Nickname)</code>, e.g. <code>Type 1 (Brand_Appartment)</code>. The ID is the stable key; the nickname is for readability.</li>
-    </ul>
-  </div>
+          </li>
+          <li>Legacy fields <code>rows</code> and <code>adsCopy.rows</code> are still supported and auto-normalized internally.</li>
+          <li>In UI lists and filters you’ll see <code>Type ID (Nickname)</code>, e.g. <code>Type 1 (Brand_Appartment)</code>. The ID is the stable key; the nickname is for readability.</li>
+        </ul>
+      </div>
 
-  <div class="card">
-    <h3>Prompt: Generate New Type JSON Template</h3>
-    <p class="muted small">
-      Use this to create a complete <b>Type</b> from one or two source tables.  
-      Prefer single-brace variables like <code>{CITY}</code>; use legacy <code>{{keywordN}}</code> (with modifiers) only where needed.
-    </p>
+      <div class="card">
+        <h3>Prompt: Generate New Type JSON Template</h3>
+        <p class="muted small">
+          Use this to create a complete <b>Type</b> from one or two source tables.  
+          Prefer single-brace variables like <code>{CITY}</code>; use legacy <code>{{keywordN}}</code> (with modifiers) only where needed.
+        </p>
 <pre><code>You are helping me maintain JSON templates for my internal Keyword Generator tool.
 
 I may share one or both of these (Types can differ; include only what exists):
@@ -326,14 +326,14 @@ Rules:
 - Ensure variables[] and samples{} cover all single-brace placeholders used.
 - Return valid JSON only — no commentary.</code></pre>
 
-    <h4 class="muted small" style="margin-top:10px">Mini examples</h4>
+        <h4 class="muted small" style="margin-top:10px">Mini examples</h4>
 <pre>// Search row example
 {"campaign":"BRAND_{BUILDER + PROJECT}_search","adset":"{BUILDER + PROJECT}","keywords":"{BUILDER + PROJECT} {LOCATION}"}
 
 // Ads row example
 {"particular":"H1 - Project Name","copy":"{BUILDER + PROJECT}"}</pre>
-  </div>
-</section>
+      </div>
+    </section>
   </main>
 
   <!-- Hashes:
