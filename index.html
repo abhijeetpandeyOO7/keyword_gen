@@ -2,50 +2,63 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)">
   <title>Keyword Generator — Internal Tool</title>
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="note-bar">System is <b>case-sensitive</b>; spaces are preserved.</div>
+  <div class="note-bar" role="status" aria-live="polite">
+    System is <b>case-sensitive</b>; spaces are preserved.
+  </div>
 
   <!-- Password Gate (always shown on refresh) -->
-  <div id="gate" class="gate">
+  <div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
     <div class="gate-card">
-      <h1>Keyword Generator</h1>
+      <h1 id="gate-title">Keyword Generator</h1>
       <p class="muted">Please enter password to enter</p>
-      <label>Password</label>
-      <input type="password" id="gate-pass" placeholder="Enter passcode" autocomplete="current-password">
+
+      <label for="gate-pass">Password</label>
+      <input
+        type="password"
+        id="gate-pass"
+        placeholder="Enter passcode"
+        inputmode="text"
+        autocomplete="current-password"
+        aria-describedby="gate-error"
+      />
+
       <div class="gate-actions">
-        <button id="gate-enter" class="btn primary">Enter</button>
+        <button id="gate-enter" class="btn primary" type="button">Enter</button>
       </div>
-      <p id="gate-error" class="error" hidden>Incorrect password. Try again.</p>
+
+      <p id="gate-error" class="error" hidden role="alert">Incorrect password. Try again.</p>
     </div>
   </div>
 
-  <header class="app-header">
-    <div class="brand">
-      <span class="logo">🔐</span>
+  <header class="app-header" role="banner">
+    <div class="brand" aria-label="App brand">
+      <span class="logo" aria-hidden="true">🔐</span>
       <h2>Keyword Generator</h2>
       <span class="dot muted">Online</span>
     </div>
-    <div class="actions">
-      <button id="theme-toggle" class="btn">🌗 Theme</button>
-      <button id="lock" class="btn">Lock</button>
+    <div class="actions" role="toolbar" aria-label="Quick actions">
+      <button id="theme-toggle" class="btn" type="button" aria-pressed="false">🌗 Theme</button>
+      <button id="lock" class="btn" type="button">Lock</button>
     </div>
   </header>
 
-  <nav class="tabs" id="tabs">
-    <button class="tab" data-tab="generate">Generate</button>
-    <!-- Templates tab (admin-gated) -->
-    <button class="tab" data-tab="templates">Templates</button>
-    <button class="tab" data-tab="logs">Logs</button>
-    <button class="tab" data-tab="help">Help</button>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Primary">
+    <button class="tab" data-tab="generate" role="tab" aria-selected="false">Generate</button>
+    <button class="tab" data-tab="templates" role="tab" aria-selected="false">Templates</button>
+    <button class="tab" data-tab="logs" role="tab" aria-selected="false">Logs</button>
+    <button class="tab" data-tab="help" role="tab" aria-selected="false">Help</button>
   </nav>
 
   <main>
     <!-- Empty state until a tab is clicked -->
-    <div id="empty-state" class="empty">
+    <div id="empty-state" class="empty" aria-live="polite">
       <div class="card">
         <h3>Welcome</h3>
         <p class="muted">Select a tab above to begin.</p>
@@ -53,43 +66,53 @@
     </div>
 
     <!-- Generate -->
-    <section id="tab-generate" class="panel">
+    <section id="tab-generate" class="panel" role="tabpanel" aria-labelledby="Generate">
       <div class="grid two">
-        <form id="gen-form" class="card" onsubmit="return false;">
+        <form id="gen-form" class="card" onsubmit="return false;" novalidate>
           <h3>Inputs</h3>
+
           <div class="grid two">
             <div>
-              <label>Type</label>
-              <select id="in-type">
+              <label for="in-type">Type</label>
+              <select id="in-type" aria-label="Template Type">
                 <option value="Type 1">Type 1</option>
               </select>
             </div>
           </div>
+
           <div class="session-field" style="display:none">
-            <label>Session</label>
+            <label for="session-id">Session</label>
             <input id="session-id" type="text" readonly>
           </div>
 
           <!-- Dynamic keyword inputs appear here -->
-          <div id="kw-box" class="grid three"></div>
+          <div id="kw-box" class="grid three" aria-live="polite"></div>
 
-          <div class="row gap">
-            <label class="row gap"><input type="checkbox" id="toggle-autolog" checked> Auto-log</label>
-            <button type="button" class="btn" id="btn-copy-all">Copy All</button>
-            <button type="button" class="btn" id="btn-export-csv">Export CSV</button>
-            <button type="button" class="btn" id="btn-export-json">Export JSON</button>
-            <button type="button" class="btn primary" id="btn-save-log">Save Log</button>
+          <div class="row gap stack-on-small">
+            <label class="row gap">
+              <input type="checkbox" id="toggle-autolog" checked> Auto-log
+            </label>
+            <div class="row gap wrap">
+              <button type="button" class="btn" id="btn-copy-all" title="Copy all rows to clipboard">Copy All</button>
+              <button type="button" class="btn" id="btn-export-csv" title="Export CSV">Export CSV</button>
+              <button type="button" class="btn" id="btn-export-json" title="Export JSON">Export JSON</button>
+              <button type="button" class="btn primary" id="btn-save-log" title="Save to Logs">Save Log</button>
+            </div>
           </div>
-          <p class="muted small">Shortcuts: Ctrl+S → Save log · Ctrl+E → Export CSV</p>
+          <p class="muted small">Shortcuts: <kbd>Ctrl</kbd>+<kbd>S</kbd> → Save log · <kbd>Ctrl</kbd>+<kbd>E</kbd> → Export CSV</p>
         </form>
 
         <div class="card">
-          <h3>Preview (Type layout)</h3>
+          <div class="row between align-end">
+            <h3>Preview (Type layout)</h3>
+          </div>
           <div class="table-wrap">
-            <table id="preview-table" class="table">
+            <table id="preview-table" class="table" role="table" aria-label="Preview">
               <thead>
                 <tr id="preview-head">
-                  <th>Campaign Name</th><th>Adset Name</th><th>Keywords</th>
+                  <th scope="col">Campaign Name</th>
+                  <th scope="col">Adset Name</th>
+                  <th scope="col">Keywords</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -101,7 +124,7 @@
     </section>
 
     <!-- Templates (admin-guarded actions) -->
-    <section id="tab-templates" class="panel">
+    <section id="tab-templates" class="panel" role="tabpanel" aria-labelledby="Templates">
       <div class="card">
         <h3>Templates</h3>
         <div class="grid two">
@@ -109,22 +132,27 @@
             <p class="muted small">
               Load or modify template sets. Changes are saved to <code>localStorage</code> and applied immediately.
             </p>
-            <div class="row gap">
-              <label class="btn file">
-                <input type="file" id="tpl-file" accept=".json,application/json">
+            <div class="row gap wrap">
+              <label class="btn file" aria-label="Import templates JSON">
+                <input type="file" id="tpl-file" accept=".json,application/json" />
                 Import JSON
               </label>
-              <button class="btn" id="tpl-export-json">Export JSON</button>
-              <button class="btn" id="tpl-reset">Reset to Defaults</button>
+              <button class="btn" id="tpl-export-json" type="button">Export JSON</button>
+              <button class="btn" id="tpl-reset" type="button">Reset to Defaults</button>
             </div>
             <div class="row gap" style="margin-top:10px">
-              <button class="btn" id="tpl-add-type2">Quick-add Type 2 (example)</button>
+              <button class="btn" id="tpl-add-type2" type="button">Quick-add Type 2 (example)</button>
               <span class="muted small">Adds/overwrites “Type 2” from shipped defaults.</span>
             </div>
           </div>
           <div>
-            <label>Current templates (read-only preview)</label>
-            <textarea id="tpl-preview" rows="18" style="width:100%;background:#0f1218;color:inherit;border:1px solid var(--border);border-radius:10px" readonly></textarea>
+            <label for="tpl-preview">Current templates (read-only preview)</label>
+            <textarea
+              id="tpl-preview"
+              rows="18"
+              spellcheck="false"
+              readonly
+            ></textarea>
             <p class="muted small">To edit manually, export → change JSON → import.</p>
           </div>
         </div>
@@ -132,37 +160,37 @@
     </section>
 
     <!-- Logs (admin-guarded) -->
-    <section id="tab-logs" class="panel">
+    <section id="tab-logs" class="panel" role="tabpanel" aria-labelledby="Logs">
       <div class="card">
         <h3>Logs</h3>
         <div class="grid three">
           <div>
-            <label>Search</label>
-            <input type="text" id="log-search" placeholder="keyword / session">
+            <label for="log-search">Search</label>
+            <input type="text" id="log-search" placeholder="keyword / session" />
           </div>
           <div>
-            <label>Type</label>
+            <label for="log-type-filter">Type</label>
             <select id="log-type-filter">
               <option value="">Any</option>
               <option value="Type 1">Type 1</option>
             </select>
           </div>
-          <div class="row gap">
-            <button id="btn-export-logs-csv" class="btn">Export CSV</button>
-            <button id="btn-export-logs-json" class="btn">Export JSON</button>
-            <button id="btn-delete-logs" class="btn danger">Delete All</button>
+          <div class="row gap wrap">
+            <button id="btn-export-logs-csv" class="btn" type="button">Export CSV</button>
+            <button id="btn-export-logs-json" class="btn" type="button">Export JSON</button>
+            <button id="btn-delete-logs" class="btn danger" type="button">Delete All</button>
           </div>
         </div>
         <div class="table-wrap">
-          <table id="logs-table" class="table small">
+          <table id="logs-table" class="table small" role="table" aria-label="Logs">
             <thead>
               <tr>
-                <th>When</th>
-                <th>Session</th>
-                <th>Type</th>
-                <th>Rows</th>
-                <th>Inputs</th>
-                <th></th>
+                <th scope="col">When</th>
+                <th scope="col">Session</th>
+                <th scope="col">Type</th>
+                <th scope="col">Rows</th>
+                <th scope="col">Inputs</th>
+                <th scope="col" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -171,97 +199,141 @@
       </div>
     </section>
 
-    <!-- Help -->
-    <section id="tab-help" class="panel">
-      <div class="card">
-        <h3>Help & Notes</h3>
+<!-- Help -->
+<section id="tab-help" class="panel" role="tabpanel" aria-labelledby="Help">
+  <div class="card">
+    <h3>Help & Notes</h3>
 
-        <h4>What it does</h4>
+    <h4>What it does</h4>
+    <ul>
+      <li>Generates a 3-column Search table — <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i> — for the selected <b>Type</b>.</li>
+      <li>If the Type defines Ads content, a 2-column <b>Ads Copy</b> table — <i>Particulars</i>, <i>Ads Copy</i> — is also shown.</li>
+      <li><b>Types can differ.</b> Each Type provides its own variable labels, sample placeholders, Search rows, and may include (or skip) Ads rows. In menus and filters you’ll see the internal ID with nickname, e.g. <code>Type 1 (Brand_Appartment)</code>.</li>
+      <li>Inputs are created automatically from the Type’s <code>variables</code> list (e.g., <code>BUILDER + PROJECT</code>, <code>CITY</code>) or legacy <code>keywordN</code> usage.</li>
+      <li>Runs fully offline. Templates/logs persist in <code>localStorage</code>; auth state is kept in <code>sessionStorage</code>.</li>
+    </ul>
+
+    <h4>Placeholders & modifiers</h4>
+    <ul>
+      <li><b>Named placeholders</b> (single braces): <code>{VAR NAME}</code> such as <code>{BUILDER + PROJECT}</code>, <code>{CITY}</code>, <code>{PRICE}</code>. These map 1:1 to input labels. <b>No modifiers</b> apply to single-brace placeholders.</li>
+      <li><b>Legacy placeholders</b> (double braces): <code>{{keyword1}}</code>…<code>{{keywordN}}</code> with optional modifiers <code>.lower</code>, <code>.upper</code>, <code>.cap</code> (Title Case), <code>.slug</code>. Examples: <code>{{keyword1.slug}}</code>, <code>{{keyword3.upper}}</code>.</li>
+      <li><b>Built-ins</b> (double-brace only): <code>{{today}}</code> (YYYY-MM-DD) and <code>{{ts}}</code> (Unix ms).</li>
+      <li>Missing variables resolve to empty strings. Case and spaces you type are preserved unless a modifier changes them.</li>
+    </ul>
+
+    <h4>Dynamic sample placeholders</h4>
+    <ul>
+      <li>Each input shows a sample value from the Type’s <code>samples</code> (or <code>sampleValues</code>) in <code>templates.js</code>.</li>
+      <li>Samples are just hints — type your own values; outputs update instantly.</li>
+    </ul>
+
+    <h4>Search output formatting</h4>
+    <ul>
+      <li><b>Campaign Name</b> → normalized to lower-case with underscores.</li>
+      <li><b>Adset Name</b> → normalized to lower-case with underscores.</li>
+      <li><b>Keywords</b> → lower-case with <b>spaces preserved</b> (no underscores) in both preview and exports.</li>
+    </ul>
+
+    <h4>Ads Copy output</h4>
+    <ul>
+      <li>If the Type includes Ads rows, all of them are rendered (they’re not filtered by inputs).</li>
+      <li>Output is tidied for readability (balanced slashes, collapsed spaces, trimmed); Title Case is applied where appropriate.</li>
+      <li>Dedicated toolbar: <b>Copy All (Ads)</b>, <b>Export CSV</b>, <b>Export JSON</b>.</li>
+    </ul>
+
+    <h4>Copy & export</h4>
+    <ul>
+      <li>Click/tap any cell to copy just that cell.</li>
+      <li><b>Copy All (Search)</b> and <b>Copy All (Ads)</b> copy as <b>TSV</b> (tab-separated) so pasting into Sheets/Excel lands in separate columns.</li>
+      <li>Exports:
         <ul>
-          <li>Takes <b>keyword1…keywordN</b> inputs and fills them into row templates.</li>
-          <li>Each <b>Type</b> defines its own number of inputs and a fixed 3-column output:
-            <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i>.</li>
-          <li>Runs fully offline. Data lives in <code>localStorage</code>/<code>sessionStorage</code>.</li>
+          <li><b>Search</b>: CSV / JSON (<code>outputs_search.*</code>)</li>
+          <li><b>Ads</b>: CSV / JSON (<code>ads_copy.*</code>)</li>
         </ul>
+      </li>
+      <li>Filenames include an ISO timestamp.</li>
+      <li>Shortcuts: <kbd>Ctrl</kbd>+<kbd>S</kbd> Save log · <kbd>Ctrl</kbd>+<kbd>E</kbd> Export CSV (Search)</li>
+    </ul>
 
-        <h4>Placeholders & helpers</h4>
-        <ul>
-          <li>Variables: <code>{{keyword1}}</code>…<code>{{keywordN}}</code></li>
-          <li>Helpers: <code>{{today}}</code> (YYYY-MM-DD), <code>{{ts}}</code> (Unix ms)</li>
-          <li>Modifiers: <code>.lower</code>, <code>.upper</code>, <code>.cap</code> (Title Case), <code>.slug</code></li>
-          <li>Examples: <code>{{keyword1.slug}}</code>, <code>{{keyword3.upper}}</code></li>
-          <li>Missing variables resolve to empty strings. Case and spaces preserved.</li>
-        </ul>
+    <h4>Logging & security</h4>
+    <ul>
+      <li><b>Auto-log</b> saves snapshots on changes and key actions (toggle in the Generate form).</li>
+      <li><b>Idle lock</b>: the app auto-locks after ~30 minutes of inactivity.</li>
+      <li><b>Admin-gated</b>: <i>Templates</i> and <i>Logs</i> tabs require the admin password.</li>
+    </ul>
 
-        <h4>Copy & export</h4>
-        <ul>
-          <li>Click any preview cell to copy just that cell.</li>
-          <li><b>Copy All</b> copies the Keywords column (one per line).</li>
-          <li>Export outputs as CSV/JSON (filename includes timestamp).</li>
-        </ul>
+    <h4>Templates workflow</h4>
+    <ul>
+      <li>Defaults load from <code>templates.js</code> at startup. Importing a JSON in the Templates tab overrides those defaults and is saved to <code>localStorage</code>.</li>
+      <li>To define or modify a Type (structure is per-Type), include:
+<pre>{
+  "nickname": "Optional_Friendly_Name",
+  "columns": ["Campaign Name","Adset Name","Keywords"],   // Search table is always 3 columns
+  "searchRows": [
+    {"campaign":"...","adset":"...","keywords":"..."}
+  ],
+  "adsColumns": ["Particulars","Ads Copy"],               // Include if Ads table is needed
+  "adsRows": [
+    {"particular":"...","copy":"..."}
+  ],
+  "variables": ["BUILDER + PROJECT","LOCATION","..."],    // Exact labels used in { … } placeholders
+  "samples": {"BUILDER + PROJECT":"example","LOCATION":"example"}
+}</pre>
+      </li>
+      <li>Legacy fields <code>rows</code> and <code>adsCopy.rows</code> are still supported and auto-normalized internally.</li>
+      <li>In UI lists and filters you’ll see <code>Type ID (Nickname)</code>, e.g. <code>Type 1 (Brand_Appartment)</code>. The ID is the stable key; the nickname is for readability.</li>
+    </ul>
+  </div>
 
-        <h4>Templates</h4>
-        <ul>
-          <li>Shipped defaults live in a separate file (<code>templates.js</code>). You can <b>Import</b> a <code>templates.json</code> to override, <b>Export</b> current templates, or <b>Reset</b> back to defaults. Actions are available in the Templates tab.</li>
-          <li>To add a new Type, include:
-<pre>{"columns":["Campaign Name","Adset Name","Keywords"],
-"rows":[{"campaign":"...","adset":"...","keywords":"..."}]}</pre>
-          </li>
-          <li>Inputs appear automatically based on the highest <code>{{keywordX}}</code> used in the selected Type.</li>
-        </ul>
+  <div class="card">
+    <h3>Prompt: Generate New Type JSON Template</h3>
+    <p class="muted small">
+      Use this to create a complete <b>Type</b> from one or two source tables.  
+      Prefer single-brace variables like <code>{CITY}</code>; use legacy <code>{{keywordN}}</code> (with modifiers) only where needed.
+    </p>
+<pre><code>You are helping me maintain JSON templates for my internal Keyword Generator tool.
 
-        <h4>General guidance</h4>
-        <ul>
-          <li>Designed for internal, offline use. Template JSON and output files contain only the data you provide in the UI.</li>
-          <li>Team can keep canonical templates in version control and distribute as a <code>templates.json</code> when needed.</li>
-        </ul>
-      </div>
+I may share one or both of these (Types can differ; include only what exists):
+- A Search table (3 columns): Campaign Name, Adset Name, Keywords → becomes searchRows
+- An Ads table (2 columns): Particulars, Ads Copy → becomes adsRows
 
-        <div class="card">
-                <h3>Prompt: Generate New Type JSON Template</h3>
-                <p class="muted small">
-                    Copy this into ChatGPT whenever you need a new template definition (Type 2, Type 3, etc.)  
-                    Provide a table (or image of a table) with columns: Campaign Name, Adset Name, Keywords.
-                </p>
-                <pre><code>You are helping me maintain JSON templates for my internal Keyword Generator tool.  
+Your task:
+1) Convert each Search row into:
+   {"campaign":"...","adset":"...","keywords":"..."}
+2) Convert each Ads row into:
+   {"particular":"...","copy":"..."}
+3) Wrap everything into this structure:
 
-                I will share a table (or image) with three columns:
-                - Campaign Name
-                - Adset Name
-                - Keywords
+"Type X": {
+  "nickname": "Optional_Friendly_Name",
+  "columns": ["Campaign Name","Adset Name","Keywords"],
+  "searchRows": [
+    {"campaign":"...","adset":"...","keywords":"..."}
+  ],
+  "adsColumns": ["Particulars","Ads Copy"],   // include only if Ads table exists
+  "adsRows": [
+    {"particular":"...","copy":"..."}
+  ],
+  "variables": ["..."],        // every unique {VAR} label used in single braces
+  "samples": {"VAR":"..."}     // sample placeholder for each variable
+}
 
-                Your task:
-                1. Convert each row into a JSON object with keys: "campaign", "adset", "keywords".
-                2. Wrap all rows into this format:
+Rules:
+- Keep spacing and case exactly as in the source.
+- Use single-brace placeholders like {BUILDER + PROJECT}, {CITY}, {PRICE}.
+- Legacy {{keywordN}} is allowed when appropriate; may use .lower, .upper, .cap, .slug modifiers.
+- If a cell is empty, set it to "".
+- Ensure variables[] and samples{} cover all single-brace placeholders used.
+- Return valid JSON only — no commentary.</code></pre>
 
-                "Type X": {
-                "columns": ["Campaign Name", "Adset Name", "Keywords"],
-                "rows": [
-                    { "campaign":"...", "adset":"...", "keywords":"..." },
-                    { "campaign":"...", "adset":"...", "keywords":"..." }
-                ]
-                }
+    <h4 class="muted small" style="margin-top:10px">Mini examples</h4>
+<pre>// Search row example
+{"campaign":"BRAND_{BUILDER + PROJECT}_search","adset":"{BUILDER + PROJECT}","keywords":"{BUILDER + PROJECT} {LOCATION}"}
 
-                Rules:
-                - Keep text, spacing, and case exactly as shown in the table.
-                - Use placeholders like {{keyword1}}, {{keyword2}}, {{keyword3}} where appropriate.
-                - If a table cell is empty, set it as "" in JSON.
-                - Return only valid JSON — no commentary.
-
-                Example output (from Type 2):
-
-                "Type 2": {
-                "columns": ["Campaign Name", "Adset Name", "Keywords"],
-                "rows": [
-                    {"campaign":"BRAND_{{keyword1.slug}}_{{keyword2.slug}}_search","adset":"keyword1_keyword2","keywords":"{{keyword1}} {{keyword2}}"},
-                    {"campaign":"BRAND_{{keyword1.slug}}_{{keyword2.slug}}_search","adset":"keyword1_keyword2_keyword3","keywords":"{{keyword1}} {{keyword2}} {{keyword3}}"}
-                    // ... continue for all rows
-                ]
-                }</code></pre>
-        </div>
-
-
-    </section>
+// Ads row example
+{"particular":"H1 - Project Name","copy":"{BUILDER + PROJECT}"}</pre>
+  </div>
+</section>
   </main>
 
   <!-- Hashes:

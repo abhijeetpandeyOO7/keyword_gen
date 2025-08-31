@@ -64,16 +64,71 @@
   // Transform helpers (NEW)
   const toLowerUnderscore = (s='') =>
     String(s).toLowerCase().replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
+  const toLowerSpaces = (s='') =>
+    String(s).toLowerCase().replace(/\s+/g,' ').trim();
   const cleanAdsCopy = (s='') => {
     let out = String(s);
-    // collapse repeated slashes/spaces caused by missing vars
-    out = out.replace(/\s*\/\s*/g,' / ');     // normalize slashes
+    out = out.replace(/\s*\/\s*/g,' / ');
     out = out.replace(/(?:\s*\/\s*){2,}/g,' / ');
-    out = out.replace(/\s{2,}/g,' ').trim();  // collapse spaces
-    out = out.replace(/^\/\s*|\s*\/$/g,'');   // trim stray leading/trailing slashes
-    // Title Case per requirement
+    out = out.replace(/\s{2,}/g,' ').trim();
+    out = out.replace(/^\/\s*|\s*\/$/g,'');
     return titleCase(out);
   };
+  // TSV escaping (for better spreadsheet pasting)
+  const escapeTsv = v => String(v??'').replace(/\t/g,' ').replace(/\r?\n/g,' ');
+
+  // ===== NEW: Dynamic placeholder helpers (fetch from shipped templates.js by type) =====
+  function getTypeSamples(typeName){
+    const shippedType = window.KG_DEFAULT_TEMPLATES?.types?.[typeName] || null;
+    const storedType  = state.templates?.types?.[typeName] || null;
+    // support both "samples" and "sampleValues"
+    return (shippedType?.samples || shippedType?.sampleValues ||
+            storedType?.samples  || storedType?.sampleValues  || {});
+  }
+  function pickSampleValue(val, indexHint){
+    if (val == null) return '';
+    if (Array.isArray(val)) {
+      if (typeof indexHint === 'number' && val[indexHint] != null) return String(val[indexHint]);
+      return String(val[0] ?? '');
+    }
+    if (typeof val === 'object') {
+      return String(val.sample ?? val.example ?? '');
+    }
+    return String(val);
+  }
+  function sampleForLabel(typeName, rawLabel, indexHint){
+    const samples = getTypeSamples(typeName) || {};
+    const clean = String(rawLabel);
+    const withBraces = `{${clean}}`;
+
+    const tryPick = (k) => (k in samples) ? pickSampleValue(samples[k], indexHint) : '';
+
+    // exact key without braces
+    let v = tryPick(clean);
+    if (v) return v;
+
+    // exact key with braces
+    v = tryPick(withBraces);
+    if (v) return v;
+
+    // case-insensitive (brace-agnostic)
+    const lower = clean.toLowerCase();
+    for (const k of Object.keys(samples)){
+      const norm = k.replace(/^\{|\}$/g,'').toLowerCase();
+      if (norm === lower) return pickSampleValue(samples[k], indexHint);
+    }
+
+    // legacy keywordN support
+    const kwMatch = clean.match(/^keyword(\d+)$/i);
+    if (kwMatch) {
+      const n = Number(kwMatch[1]);
+      if (Array.isArray(samples.keywords) && samples.keywords[n-1] != null) {
+        return String(samples.keywords[n-1]);
+      }
+      if (samples.keyword != null) return pickSampleValue(samples.keyword, n-1);
+    }
+    return '';
+  }
 
   // Safer storage helpers
   const lsGet = (k, fallback) => {
@@ -234,8 +289,9 @@
       vars.forEach(label => {
         const clean = label.replace(/^\{|\}$/g,''); // tolerate labels listed with braces
         const id = 'in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
+        const sample = sampleForLabel(typeName, clean); // dynamic placeholder
         const wrap = document.createElement('div');
-        wrap.innerHTML = `<label>${escapeHtml(clean)}</label><input type="text" id="${id}" placeholder="">`;
+        wrap.innerHTML = `<label>${escapeHtml(clean)}</label><input type="text" id="${id}" placeholder="${escapeHtml(sample)}">`;
         box.appendChild(wrap);
       });
     } else {
@@ -243,7 +299,9 @@
       const maxN = maxKeywordIndexInType(typeName);
       for(let i=1;i<=maxN;i++){
         const wrap = document.createElement('div');
-        wrap.innerHTML = `<label>keyword${i} ${i===1?'(required)':''}</label><input type="text" id="in-keyword${i}" placeholder="">`;
+        const key = `keyword${i}`;
+        const sample = sampleForLabel(typeName, key, i-1); // supports samples.keywords array
+        wrap.innerHTML = `<label>${key} ${i===1?'(required)':''}</label><input type="text" id="in-${key}" placeholder="${escapeHtml(sample)}">`;
         box.appendChild(wrap);
       }
     }
@@ -255,12 +313,32 @@
     });
   }
 
+  // ===== NEW: display helper for "Type ID (Nickname)" =====
+  function getTypeDisplayName(typeId){
+    const def = state.templates?.types?.[typeId];
+    const nick = def && def.nickname ? ` (${def.nickname})` : '';
+    return `${typeId}${nick}`;
+  }
+
   function populateTypeSelect(){
     const sel=qs('#in-type');
     qsa('option', sel).forEach((o,i)=>{ if(i>0) o.remove(); }); // keep first option as-is
     Object.keys(state.templates.types).forEach(t=>{
-      if (t !== sel.options[0].value){ const o=document.createElement('option'); o.value=t; o.textContent=t; sel.appendChild(o); }
+      if (t !== sel.options[0].value){
+        const o=document.createElement('option');
+        o.value=t;
+        // UPDATED: show nickname when present
+        o.textContent=getTypeDisplayName(t);
+        sel.appendChild(o);
+      }
     });
+    // UPDATED: also refresh the label of the first (pre-seeded) option if nickname exists
+    if (sel.options.length > 0) {
+      const firstVal = sel.options[0].value;
+      if (state.templates.types[firstVal]?.nickname) {
+        sel.options[0].textContent = getTypeDisplayName(firstVal);
+      }
+    }
     sel.addEventListener('change', ()=>{ renderInputsForType(); renderPreview(); renderAdsCopyPreview(); autoLogEvent(); });
   }
 
@@ -414,10 +492,11 @@
 
       // Wire Ads toolbar once
       qs('#btn-ads-copy-all').addEventListener('click', async ()=>{
+        // Use TSV for clipboard so pasting splits into columns
         const rows = collectAdsExportRows();
         const header = ['Particulars','Ads Copy'];
-        const lines = [header.map(escapeCsv).join(',')];
-        rows.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
+        const lines = [header.map(escapeTsv).join('\t')];
+        rows.forEach(r=>lines.push([escapeTsv(r['Particulars']), escapeTsv(r['Ads Copy'])].join('\t')));
         const ok = await copyText(lines.join('\n'));
         autoLogEvent();
         if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
@@ -475,8 +554,8 @@
       const td3 = document.createElement('td');
       td3.className = 'copyable';
       let k = evaluateTemplate(r.keywords, vars);
-      // 🔹 MODIFIED: keep spaces in Keywords (lowercase only, no underscores)
-      k = String(k).toLowerCase().replace(/\s+/g,' ').trim();
+      // keep spaces (no underscores) for on-screen preview
+      k = toLowerSpaces(k);
       td3.dataset.copy = k; td3.textContent = k;
 
       tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
@@ -539,13 +618,13 @@
   // ===== Buttons / export (SEARCH table only) =====
   const fileName=(base,ext)=>`${base}_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
 
-  // Copy All (Search): copy ALL columns as CSV
+  // Copy All (Search): use TSV for clipboard so paste splits into columns
   qs('#btn-copy-all').addEventListener('click',async ()=> {
     const out = collectExportRows(); // search only
     const header = Object.keys(out[0]||{campaign:'',adset:'',keywords:''});
-    const lines = [header.map(escapeCsv).join(',')];
-    out.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
-    const ok = await copyText(lines.join('\n'));
+    const tsvLines = [header.map(escapeTsv).join('\t')];
+    out.forEach(r=>tsvLines.push(header.map(h=>escapeTsv(r[h])).join('\t')));
+    const ok = await copyText(tsvLines.join('\n'));
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   });
@@ -572,7 +651,8 @@
     return visible.map(r=>{
       let campaign = toLowerUnderscore(evaluateTemplate(r.campaign, vars));
       let adset    = toLowerUnderscore(evaluateTemplate(r.adset, vars));
-      let keywords = toLowerUnderscore(evaluateTemplate(r.keywords, vars));
+      // IMPORTANT: for exports, keep keywords with spaces (match preview)
+      let keywords = toLowerSpaces(evaluateTemplate(r.keywords, vars));
       return { campaign, adset, keywords };
     });
   }
@@ -713,7 +793,11 @@
     const current = sel.value;
     sel.innerHTML = '<option value="">Any</option>';
     Object.keys(state.templates.types||{}).forEach(t=>{
-      const opt = document.createElement('option'); opt.value=t; opt.textContent=t; sel.appendChild(opt);
+      const opt = document.createElement('option'); 
+      opt.value=t; 
+      // UPDATED: show nickname when present
+      opt.textContent=getTypeDisplayName(t);
+      sel.appendChild(opt);
     });
     sel.value = current || '';
   }
@@ -775,11 +859,11 @@
     if (addT2Btn && !addT2Btn.__kg_bound) {
       addT2Btn.addEventListener('click', async ()=>{
         if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
-        if(!SHIPPED_DEFAULTS || !SHIPPED_DEFAULTS.types || !SHIPPED_DEFAULTS.types['Type 2']){
+        if(!SHIPPED_DEFAULTS || !SHIPPED_DEFAULT_TEMPLATES.types || !SHIPPED_DEFAULT_TEMPLATES.types['Type 2']){
           alert('Type 2 not found in shipped defaults.'); return;
         }
         const next = JSON.parse(JSON.stringify(state.templates || {types:{}}));
-        next.types['Type 2'] = SHIPPED_DEFAULTS.types['Type 2'];
+        next.types['Type 2'] = SHIPPED_DEFAULT_TEMPLATES.types['Type 2'];
         setTemplates(next);
       });
       addT2Btn.__kg_bound = true;
