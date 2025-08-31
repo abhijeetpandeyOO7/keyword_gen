@@ -475,7 +475,8 @@
       const td3 = document.createElement('td');
       td3.className = 'copyable';
       let k = evaluateTemplate(r.keywords, vars);
-      k = toLowerUnderscore(k);
+      // 🔹 MODIFIED: keep spaces in Keywords (lowercase only, no underscores)
+      k = String(k).toLowerCase().replace(/\s+/g,' ').trim();
       td3.dataset.copy = k; td3.textContent = k;
 
       tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
