@@ -4,7 +4,7 @@ window.KG_DEFAULT_TEMPLATES = {
   "types": {
             "Type 1": 
             {
-              "nickname": "Brand_Appartment",
+              "nickname": "Brand - Apartment",
               "columns": ["Campaign Name", "Adset Name", "Keywords"],
               "searchRows": [
                 {"campaign":"BRAND_{BUILDER + PROJECT}_search","adset":"{BUILDER + PROJECT}","keywords":"{BUILDER + PROJECT}"},
@@ -67,7 +67,7 @@ window.KG_DEFAULT_TEMPLATES = {
                 {"particular":"Description 7","copy":"{BUILDER + PROJECT} is a Proposed Luxury Residential Development on {ROAD} in {SECTOR}, {CITY}"},
                 {"particular":"Description 8","copy":"Buy Your Premium Homes, It is Offering Opulent {JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3, TYPOLOGY 4, TYPOLOGY 5, TYPOLOGY 6} BHK Apartments With Contemporary Facilities","X": true},
                 {"particular":"Description 9","copy":"Experience Riverside Living at {PROJECT}, {CITY} {LOCATION} – Now Launching"},
-                {"particular":"Description 10","copy":"Bookings Open {PROJECT} {JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3, TYPOLOGY 4, TYPOLOGY 5, TYPOLOGY 6} {PRICE}. Ask Expert & Visit Site","X": true},
+                {"particular":"Description 10","copy":"Bookings Open {PROJECT} {JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3, TYPOLOGY 4, TYPOLOGY 5, TYPOLOGY 6} BHK Start at {PRICE}. Ask Expert & Visit Site","X": true},
                 {"particular":"Description 11","copy":"Your Mornings Begin by the Water’s Edge and Evenings Slow Down Under the Open Sky"},
                 {"particular":"Description 12","copy":"Emphasizes a Blend of Urban Convenience and Natural Charm, Featuring a Large Riverside Apartments"},
                 {"particular":"Description 13","copy":"RERA Approved - Limited {JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3, TYPOLOGY 4, TYPOLOGY 5, TYPOLOGY 6} BHK Starts {PRICE}. Pre-book for exclusive launch","X": true},
@@ -84,20 +84,20 @@ window.KG_DEFAULT_TEMPLATES = {
                 "TYPOLOGY 5","TYPOLOGY 6","PROJECT","CITY","PRICE","PRICE RANGE","ROAD","SECTOR"
               ],
               "samples": {
-                "BUILDER + PROJECT": "godrej ananda",
-                "LOCATION": "bangalore",
-                "TYPOLOGY 1": "1",
-                "TYPOLOGY 2": "2",
-                "TYPOLOGY 3": "3",
-                "TYPOLOGY 4": "4",
-                "TYPOLOGY 5": "5",
-                "TYPOLOGY 6": "6",
-                "PROJECT": "ananda",
-                "CITY": "Yelahanka",
-                "PRICE": "Rs.1.187Cr*",
-                "PRICE RANGE": "Rs.1.87 - 3.03Cr*",
-                "ROAD": "sarjapur road",
-                "SECTOR": "sector 104"
+                "Builder + Project": "godrej ananda",
+                "Location": "bangalore",
+                "Typology 1": "1",
+                "Typology 2": "2",
+                "Typology 3": "3",
+                "Typology 4": "4",
+                "Typology 5": "5",
+                "Typology 6": "6",
+                "Project": "ananda",
+                "City": "yelahanka",
+                "Price": "₹1.187Cr*",
+                "Price Range": "₹1.87 - 3.03Cr*",
+                "Road": "sarjapur road",
+                "Sector": "sector 104"
               }
             },
             "Type 2": {

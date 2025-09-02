@@ -454,9 +454,9 @@
       wrap.innerHTML = `
         <h3 style="margin-top:1rem">Ads Copy</h3>
         <div class="row gap" id="ads-toolbar" style="margin: .25rem 0 .5rem 0;">
-          <button type="button" class="btn" id="btn-ads-copy-all">Copy All (Ads)</button>
-          <button type="button" class="btn" id="btn-ads-export-csv">Export CSV (Ads)</button>
-          <button type="button" class="btn" id="btn-ads-export-json">Export JSON (Ads)</button>
+          <button type="button" class="btn" id="btn-ads-copy-all">Copy All</button>
+          <button type="button" class="btn" id="btn-ads-export-csv">Export CSV</button>
+          <button type="button" class="btn" id="btn-ads-export-json">Export JSON</button>
         </div>
         <div class="table-wrap" id="adscopy-wrap">
           <table id="ads-table" class="table">

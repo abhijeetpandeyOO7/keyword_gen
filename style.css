@@ -195,3 +195,7 @@ input:focus, select:focus, textarea:focus, .btn:focus{outline:none; box-shadow:v
   .tabs{gap:6px; padding:6px 8px}
   .tab{padding:6px 8px}
 }
+
+#btn-ads-export-json{
+  display: none;
+}
