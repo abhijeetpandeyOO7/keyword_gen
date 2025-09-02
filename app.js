@@ -1,4 +1,4 @@
-/* Keyword Generator — app.js (QA-polished: clipboard fallback, safe rendering, robust storage) */
+/* Keyword Generator — app.js (variable-only transforms, ads filters, always-reset templates) */
 (() => {
   const PASS_HASH   = window.KG_PASS_HASH;
   const ADMIN_HASH  = window.KG_ADMIN_HASH;
@@ -61,19 +61,16 @@
   const escapeCsv = v => /[",\n]/.test(String(v??'')) ? `"${String(v).replace(/"/g,'""')}"` : String(v??'');
   const fmtDate = ts => new Date(ts).toLocaleString();
 
-  // Transform helpers (NEW)
-  const toLowerUnderscore = (s='') =>
-    String(s).toLowerCase().replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
-  const toLowerSpaces = (s='') =>
-    String(s).toLowerCase().replace(/\s+/g,' ').trim();
-  const cleanAdsCopy = (s='') => {
-    let out = String(s);
-    out = out.replace(/\s*\/\s*/g,' / ');
-    out = out.replace(/(?:\s*\/\s*){2,}/g,' / ');
-    out = out.replace(/\s{2,}/g,' ').trim();
-    out = out.replace(/^\/\s*|\s*\/$/g,'');
-    return titleCase(out);
-  };
+  // -------- transforms we’ll apply ONLY to variable insertions ----------
+  const varLowerUnderscore = (s='') =>
+    String(s).trim().toLowerCase().replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
+  const varLowerSpaces = (s='') =>
+    String(s).trim().toLowerCase(); // preserve spaces as typed
+  const varTitleCase = (s='') =>
+    titleCase(String(s).trim());
+  const normalizeSlashTight = (s='') =>
+    String(s).replace(/\s*\/\s*/g,'/'); // "1 / 2 / 3" -> "1/2/3"
+
   // TSV escaping (for better spreadsheet pasting)
   const escapeTsv = v => String(v??'').replace(/\t/g,' ').replace(/\r?\n/g,' ');
 
@@ -81,7 +78,6 @@
   function getTypeSamples(typeName){
     const shippedType = window.KG_DEFAULT_TEMPLATES?.types?.[typeName] || null;
     const storedType  = state.templates?.types?.[typeName] || null;
-    // support both "samples" and "sampleValues"
     return (shippedType?.samples || shippedType?.sampleValues ||
             storedType?.samples  || storedType?.sampleValues  || {});
   }
@@ -103,22 +99,18 @@
 
     const tryPick = (k) => (k in samples) ? pickSampleValue(samples[k], indexHint) : '';
 
-    // exact key without braces
     let v = tryPick(clean);
     if (v) return v;
 
-    // exact key with braces
     v = tryPick(withBraces);
     if (v) return v;
 
-    // case-insensitive (brace-agnostic)
     const lower = clean.toLowerCase();
     for (const k of Object.keys(samples)){
       const norm = k.replace(/^\{|\}$/g,'').toLowerCase();
       if (norm === lower) return pickSampleValue(samples[k], indexHint);
     }
 
-    // legacy keywordN support
     const kwMatch = clean.match(/^keyword(\d+)$/i);
     if (kwMatch) {
       const n = Number(kwMatch[1]);
@@ -213,52 +205,19 @@
     try{ const hex = await sha256Hex(input); return hex===ADMIN_HASH; }catch{ return false; }
   }
 
-  // ===== Storage =====
+  /* =========================
+     Template loading (ALWAYS RESET TO SHIPPED DEFAULTS ON REFRESH)
+     ========================= */
   const loadTemplates=()=>{
     const shipped = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
       && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
       ? window.KG_DEFAULT_TEMPLATES
       : DEFAULT_TEMPLATES;
 
-    const stored = lsGet(STORAGE.templates, null);
-    let result = (stored && stored.types) ? stored : JSON.parse(JSON.stringify(shipped));
-
-    // merge in any newly shipped types/fields
-    if (shipped && shipped.types) {
-      result.types = result.types || {};
-      Object.keys(shipped.types).forEach(t => {
-        if (!result.types[t]) {
-          result.types[t] = shipped.types[t];
-        } else {
-          // ensure columns / variables / ads structures exist if shipped adds them
-          if (!Array.isArray(result.types[t].columns) && Array.isArray(shipped.types[t].columns)) {
-            result.types[t].columns = shipped.types[t].columns;
-          }
-          if (!result.types[t].variables && shipped.types[t].variables) {
-            result.types[t].variables = shipped.types[t].variables;
-          }
-          if (!result.types[t].searchRows && shipped.types[t].searchRows) {
-            result.types[t].searchRows = shipped.types[t].searchRows;
-          }
-          if (!result.types[t].adsRows && shipped.types[t].adsRows) {
-            result.types[t].adsRows = shipped.types[t].adsRows;
-          }
-          if (!result.types[t].adsColumns && shipped.types[t].adsColumns) {
-            result.types[t].adsColumns = shipped.types[t].adsColumns;
-          }
-          // back-compat: support older 'rows' + 'adsCopy'
-          if (!result.types[t].rows && shipped.types[t].rows) {
-            result.types[t].rows = shipped.types[t].rows;
-          }
-          if (!result.types[t].adsCopy && shipped.types[t].adsCopy) {
-            result.types[t].adsCopy = shipped.types[t].adsCopy;
-          }
-        }
-      });
-    }
-
+    // Always reset to shipped defaults on each refresh
+    const result = JSON.parse(JSON.stringify(shipped));
     state.templates = result;
-    lsSet(STORAGE.templates, result);
+    lsSet(STORAGE.templates, result); // keeps preview/export buttons working with persisted value if needed
   };
   const persistTemplates=()=>lsSet(STORAGE.templates, state.templates);
   const getLogs = ()=>lsGet(STORAGE.logs, []);
@@ -271,11 +230,11 @@
     populateTypeSelect();
     renderInputsForType();
     bindShortcuts();
-    renderPreview();          // both previews respect filters on first load
+    renderPreview();
     renderAdsCopyPreview();
   }
 
-  // ===== Input builders (support variables OR legacy keywordN) =====
+  // ===== Inputs (variables OR legacy keywordN) =====
   function typeHasVariables(typeName){
     return !!(state.templates.types[typeName] && Array.isArray(state.templates.types[typeName].variables));
   }
@@ -287,26 +246,24 @@
     if (typeHasVariables(typeName)) {
       const vars = state.templates.types[typeName].variables;
       vars.forEach(label => {
-        const clean = label.replace(/^\{|\}$/g,''); // tolerate labels listed with braces
+        const clean = label.replace(/^\{|\}$/g,'');
         const id = 'in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
-        const sample = sampleForLabel(typeName, clean); // dynamic placeholder
+        const sample = sampleForLabel(typeName, clean);
         const wrap = document.createElement('div');
         wrap.innerHTML = `<label>${escapeHtml(clean)}</label><input type="text" id="${id}" placeholder="${escapeHtml(sample)}">`;
         box.appendChild(wrap);
       });
     } else {
-      // legacy keywordN auto-range
       const maxN = maxKeywordIndexInType(typeName);
       for(let i=1;i<=maxN;i++){
         const wrap = document.createElement('div');
         const key = `keyword${i}`;
-        const sample = sampleForLabel(typeName, key, i-1); // supports samples.keywords array
+        const sample = sampleForLabel(typeName, key, i-1);
         wrap.innerHTML = `<label>${key} ${i===1?'(required)':''}</label><input type="text" id="in-${key}" placeholder="${escapeHtml(sample)}">`;
         box.appendChild(wrap);
       }
     }
 
-    // Wire listeners
     qsa('#kw-box input').forEach(inp=>{
       inp.addEventListener('input', ()=>{ renderPreview(); renderAdsCopyPreview(); scheduleAutoLog(); });
       inp.addEventListener('change', ()=>{ renderPreview(); renderAdsCopyPreview(); scheduleAutoLog(true); });
@@ -322,17 +279,15 @@
 
   function populateTypeSelect(){
     const sel=qs('#in-type');
-    qsa('option', sel).forEach((o,i)=>{ if(i>0) o.remove(); }); // keep first option as-is
+    qsa('option', sel).forEach((o,i)=>{ if(i>0) o.remove(); });
     Object.keys(state.templates.types).forEach(t=>{
       if (t !== sel.options[0].value){
         const o=document.createElement('option');
         o.value=t;
-        // UPDATED: show nickname when present
         o.textContent=getTypeDisplayName(t);
         sel.appendChild(o);
       }
     });
-    // UPDATED: also refresh the label of the first (pre-seeded) option if nickname exists
     if (sel.options.length > 0) {
       const firstVal = sel.options[0].value;
       if (state.templates.types[firstVal]?.nickname) {
@@ -347,85 +302,99 @@
     const type = state.templates.types[typeName];
     if(!type) return 3;
     const scan = JSON.stringify(type);
-    const m = [...scan.matchAll(/{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi)].map(x=>Number(x[1]));
+       const m = [...scan.matchAll(/{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi)].map(x=>Number(x[1]));
     return m.length ? Math.max(...m) : 3;
   }
 
-  // ===== Template engine (supports both syntaxes) =====
-  function evaluateTemplate(tpl, vars){
+  /* =========================
+     Template engine with VARIABLE-ONLY transforms
+     ========================= */
+  function evaluateWithTransforms(tpl, vars, {namedTransform, legacyTransform} = {}){
     if(!tpl) return '';
 
-    // 1) double-curly legacy with modifiers
-    tpl = tpl.replace(/{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}/g, (_m, expr) => {
-      const parts = expr.split('.'); const key = parts.shift();
+    // Handle legacy {{keywordN[.modifier]}}
+    tpl = tpl.replace(/{{\s*([a-zA-Z0-9_]+)(?:\.([a-zA-Z0-9_]+))?\s*}}/g, (_m, key, mod) => {
       let val = ({...vars, today:todayYMD(), ts:timestamp()})[key];
       if(val==null) val='';
-      parts.forEach(mod=>{
-        if(mod==='lower') val=String(val).toLowerCase();
-        else if(mod==='upper') val=String(val).toUpperCase();
-        else if(mod==='cap')   val=titleCase(String(val));
-        else if(mod==='slug')  val=slugify(String(val));
-      });
-      return String(val);
+      if (mod) {
+        if(mod==='lower') return String(val).toLowerCase();
+        if(mod==='upper') return String(val).toUpperCase();
+        if(mod==='cap')   return titleCase(String(val));
+        if(mod==='slug')  return slugify(String(val));
+        return String(val);
+      }
+      // no modifier → apply legacyTransform if provided
+      return legacyTransform ? legacyTransform(val) : String(val);
     });
 
-    // 2) single-curly named variables (exact label match inside the braces)
+    // Handle single-brace {VAR LABEL}
     tpl = tpl.replace(/{\s*([^{}]+?)\s*}/g, (_m, labelRaw) => {
-      const label = labelRaw.replace(/^\{|\}$/g,''); // normalize
+      const label = labelRaw.replace(/^\{|\}$/g,'');
       const v = vars[label];
-      return v==null ? '' : String(v);
+      if (v==null) return '';
+      return namedTransform ? namedTransform(v) : String(v);
     });
 
     return tpl;
   }
 
-  // ===== Collect variables from inputs (both kinds) =====
-  function collectVars(){
-    const v = {};
-
-    // legacy keywordN
-    qsa('input[id^="in-keyword"]').forEach(inp=>{
-      const n = inp.id.match(/in-keyword(\d+)/)[1];
-      v['keyword'+n] = inp.value.trim();
-    });
-
-    // named variables
-    const typeName = qs('#in-type').value;
-    if (typeHasVariables(typeName)) {
-      const vars = state.templates.types[typeName].variables;
-      vars.forEach(label => {
-        const clean = label.replace(/^\{|\}$/g,''); // allow braces in variable list
-        const id = '#in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
-        const el = qs(id);
-        v[clean] = (el?.value ?? '').trim();
-      });
+  /* =========================
+     Inline JOIN helpers (e.g., {JOIN:TYPOLOGY 1,TYPOLOGY 2,...})
+     ========================= */
+  function parseJoinLabels(str=''){
+    const labels = [];
+    const re = /{\s*JOIN:([^{}]+)\s*}/gi;
+    let m; 
+    while ((m = re.exec(str))) {
+      const csv = m[1];
+      csv.split(',').map(s=>s.trim()).filter(Boolean).forEach(l=>labels.push(l));
     }
-
-    return v;
+    return labels;
+  }
+  function hasAnyJoinValue(str='', vars={}){
+    const labels = parseJoinLabels(str);
+    if (labels.length === 0) return true; // no JOIN present → not restrictive
+    return labels.some(l => vars[l] != null && String(vars[l]).trim() !== '');
+  }
+  function expandInlineJoins(str='', vars={}, itemTransform){
+    return String(str).replace(/{\s*JOIN:([^{}]+)\s*}/g, (_m, csv) => {
+      const labels = csv.split(',').map(s => s.trim()).filter(Boolean);
+      const parts = [];
+      labels.forEach(label => {
+        const v = vars[label];
+        if (v != null && String(v).trim() !== '') {
+          parts.push(itemTransform ? itemTransform(v) : String(v));
+        }
+      });
+      return parts.join('/');
+    });
   }
 
   /* =========================
      Row filtering logic
      ========================= */
-  // a) placeholders like {{keyword7}} and {{keyword7.slug}}
   function extractKeywordIndexesFromPlaceholders(str=''){
     const set = new Set();
     const re = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
     let m; while((m = re.exec(str))){ set.add(Number(m[1])); }
     return set;
   }
-  // b) literal tokens like keyword7, keyword1_keyword8, etc. (legacy)
   function extractKeywordIndexesFromLiterals(str=''){
     const set = new Set();
     const re = /(^|[^a-z0-9])keyword(\d+)(?=$|[^a-z0-9])/gi;
     let m; while((m = re.exec(str))){ set.add(Number(m[2])); }
     return set;
   }
-  // c) named variable labels inside { … }
   function extractNamedLabels(str=''){
     const set = new Set();
     const re = /{\s*([^{}]+?)\s*}/g;
-    let m; while((m = re.exec(str))){ set.add(m[1].replace(/^\{|\}$/g,'')); }
+    let m; 
+    while((m = re.exec(str))){
+      const label = m[1].replace(/^\{|\}$/g,'').trim();
+      // Skip inline JOIN expressions; they are handled separately
+      if (/^JOIN:/i.test(label)) continue;
+      set.add(label);
+    }
     return set;
   }
 
@@ -450,7 +419,6 @@
     const kl = extractKeywordIndexesFromLiterals(row.copy || '');
     return { keywordIdx: new Set([...kp, ...kl]), named: n };
   }
-
   function rowHasAllVars(refs, vars){
     for (const idx of refs.keywordIdx){
       const v = vars['keyword'+idx];
@@ -462,11 +430,19 @@
     }
     return true;
   }
-
   function filterSearchRowsByVars(rows, vars){
     return rows.filter(r => rowHasAllVars(requiredRefsForSearchRow(r), vars));
   }
-  // NOTE: Ads rows are NOT filtered anymore (always show all 54)
+  function filterAdsRowsByVars(rows, vars){
+    return rows.filter(r => {
+      if (r?.X === true) return true; // special rows always visible
+      const refsOk = rowHasAllVars(requiredRefsForAdsRow(r), vars);
+      if (!refsOk) return false;
+      // If row contains JOIN, require at least one joined label to be present
+      if (!hasAnyJoinValue(r.copy || '', vars)) return false;
+      return true;
+    });
+  }
 
   // ===== Ensure Ads table (and toolbar) exist in DOM =====
   function ensureAdsTable(){
@@ -492,7 +468,6 @@
 
       // Wire Ads toolbar once
       qs('#btn-ads-copy-all').addEventListener('click', async ()=>{
-        // Use TSV for clipboard so pasting splits into columns
         const rows = collectAdsExportRows();
         const header = ['Particulars','Ads Copy'];
         const lines = [header.map(escapeTsv).join('\t')];
@@ -517,14 +492,27 @@
     }
   }
 
-  // ===== Preview (main 3-column) =====
+  // ===== Accessors for rows =====
   function getSearchRows(def){
-    // Prefer new structure
     if (Array.isArray(def?.searchRows)) return def.searchRows;
-    // Fallback to legacy
     if (Array.isArray(def?.rows)) return def.rows;
     return [];
   }
+  function getAdsRows(def){
+    if (Array.isArray(def?.adsRows)) return def.adsRows;
+    if (def?.adsCopy && Array.isArray(def.adsCopy.rows)) {
+      return def.adsCopy.rows.map(x => ({
+        particular: x.particulars ?? x.particular ?? '',
+        copy: x.copy ?? '',
+        X: x.X === true
+      }));
+    }
+    return [];
+  }
+
+  /* =========================
+     PREVIEW RENDER (variable-only transforms)
+     ========================= */
   function renderPreview(){
     const tbody = qs('#preview-table tbody'); if(!tbody) return;
     tbody.innerHTML='';
@@ -539,44 +527,44 @@
     visibleRows.forEach(r=>{
       const tr = document.createElement('tr');
 
+      // Campaign: variables -> lower_underscore ; static text unchanged
       const td1 = document.createElement('td');
       td1.className = 'copyable';
-      let c = evaluateTemplate(r.campaign, vars);
-      c = toLowerUnderscore(c);
-      td1.dataset.copy = c; td1.appendChild(Object.assign(document.createElement('code'),{textContent:c}));
+      const c = evaluateWithTransforms(r.campaign, vars, {
+        namedTransform:  varLowerUnderscore,
+        legacyTransform: varLowerUnderscore
+      });
+      td1.dataset.copy = c;
+      td1.appendChild(Object.assign(document.createElement('code'),{textContent:c}));
 
+      // Adset: variables -> lower_underscore ; static text unchanged
       const td2 = document.createElement('td');
       td2.className = 'copyable';
-      let a = evaluateTemplate(r.adset, vars);
-      a = toLowerUnderscore(a);
-      td2.dataset.copy = a; td2.appendChild(Object.assign(document.createElement('code'),{textContent:a}));
+      const a = evaluateWithTransforms(r.adset, vars, {
+        namedTransform:  varLowerUnderscore,
+        legacyTransform: varLowerUnderscore
+      });
+      td2.dataset.copy = a;
+      td2.appendChild(Object.assign(document.createElement('code'),{textContent:a}));
 
+      // Keywords: variables -> lower (spaces preserved) ; static text unchanged
       const td3 = document.createElement('td');
       td3.className = 'copyable';
-      let k = evaluateTemplate(r.keywords, vars);
-      // keep spaces (no underscores) for on-screen preview
-      k = toLowerSpaces(k);
-      td3.dataset.copy = k; td3.textContent = k;
+      const k = evaluateWithTransforms(r.keywords, vars, {
+        namedTransform:  varLowerSpaces,
+        legacyTransform: varLowerSpaces
+      });
+      td3.dataset.copy = k;
+      td3.textContent = k;
 
       tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
       tbody.appendChild(tr);
     });
   }
 
-  // ===== Ads Copy Preview (2-column) =====
-  function getAdsRows(def){
-    // New structure: adsRows
-    if (Array.isArray(def?.adsRows)) return def.adsRows;
-    // Back-compat: adsCopy.rows
-    if (def?.adsCopy && Array.isArray(def.adsCopy.rows)) {
-      // normalize to {particular, copy}
-      return def.adsCopy.rows.map(x => ({
-        particular: x.particulars ?? x.particular ?? '',
-        copy: x.copy ?? ''
-      }));
-    }
-    return [];
-  }
+  /* =========================
+     ADS COPY RENDER (TitleCase variables + tight slashes + JOIN + filter)
+     ========================= */
   function renderAdsCopyPreview(){
     ensureAdsTable();
     const tbody = qs('#ads-table tbody'); if(!tbody) return;
@@ -584,8 +572,9 @@
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName]; if(!def) return;
 
-    const rows = getAdsRows(def);
+    const allRows = getAdsRows(def);
     const vars = collectVars();
+    const rows = filterAdsRowsByVars(allRows, vars);
 
     rows.forEach(r=>{
       const tr = document.createElement('tr');
@@ -594,8 +583,16 @@
       td1.textContent = r.particular ?? r.particulars ?? '';
 
       const td2 = document.createElement('td');
-      let out = evaluateTemplate(r.copy || '', vars); // blanks become empty
-      out = cleanAdsCopy(out);
+      // 1) Expand inline JOIN into "1/2/3" etc., transforming each joined item with TitleCase
+      let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
+      // 2) Now evaluate remaining placeholders with variable-only transforms (TitleCase for Ads)
+      let out = evaluateWithTransforms(expanded, vars, {
+        namedTransform:  varTitleCase,
+        legacyTransform: varTitleCase
+      });
+      // 3) Tighten slashes
+      out = normalizeSlashTight(out).trim();
+
       td2.className = 'copyable';
       td2.dataset.copy = out;
       td2.textContent = out;
@@ -618,9 +615,9 @@
   // ===== Buttons / export (SEARCH table only) =====
   const fileName=(base,ext)=>`${base}_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
 
-  // Copy All (Search): use TSV for clipboard so paste splits into columns
+  // Copy All (Search) — TSV
   qs('#btn-copy-all').addEventListener('click',async ()=> {
-    const out = collectExportRows(); // search only
+    const out = collectExportRows();
     const header = Object.keys(out[0]||{campaign:'',adset:'',keywords:''});
     const tsvLines = [header.map(escapeTsv).join('\t')];
     out.forEach(r=>tsvLines.push(header.map(h=>escapeTsv(r[h])).join('\t')));
@@ -642,31 +639,45 @@
     autoLogEvent();
   });
 
-  // Build export rows (SEARCH) with transformations applied
+  // Build export rows (SEARCH) — same rules as preview
   function collectExportRows(){
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = getSearchRows(state.templates.types[typeName]);
     const visible = filterSearchRowsByVars(rows, vars);
     return visible.map(r=>{
-      let campaign = toLowerUnderscore(evaluateTemplate(r.campaign, vars));
-      let adset    = toLowerUnderscore(evaluateTemplate(r.adset, vars));
-      // IMPORTANT: for exports, keep keywords with spaces (match preview)
-      let keywords = toLowerSpaces(evaluateTemplate(r.keywords, vars));
+      const campaign = evaluateWithTransforms(r.campaign, vars, {
+        namedTransform:  varLowerUnderscore,
+        legacyTransform: varLowerUnderscore
+      });
+      const adset = evaluateWithTransforms(r.adset, vars, {
+        namedTransform:  varLowerUnderscore,
+        legacyTransform: varLowerUnderscore
+      });
+      const keywords = evaluateWithTransforms(r.keywords, vars, {
+        namedTransform:  varLowerSpaces,
+        legacyTransform: varLowerSpaces
+      });
       return { campaign, adset, keywords };
     });
   }
 
-  // Ads Copy export helpers
+  // Ads Copy export (same as preview rules)
   function collectAdsExportRows(){
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName];
-    const rows = getAdsRows(def);
+    const allRows = getAdsRows(def);
     const vars = collectVars();
+    const rows = filterAdsRowsByVars(allRows, vars);
     return rows.map(r=>{
       const particulars = r.particular ?? r.particulars ?? '';
-      const copyRaw = evaluateTemplate(r.copy || '', vars);
-      const copy = cleanAdsCopy(copyRaw);
+      // Expand inline JOIN, then evaluate placeholders, then tighten slashes
+      let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
+      let copy = evaluateWithTransforms(expanded, vars, {
+        namedTransform:  varTitleCase,
+        legacyTransform: varTitleCase
+      });
+      copy = normalizeSlashTight(copy).trim();
       return { "Particulars": particulars, "Ads Copy": copy };
     });
   }
@@ -727,8 +738,8 @@
     const entry = {
       id:(crypto.randomUUID&&crypto.randomUUID())||(Date.now()+Math.random()).toString(36),
       at:Date.now(), sessionId:state.sessionId, type:typeName,
-      inputs: collectVars(), 
-      outputs: collectExportRows(), // search outputs (transformed)
+      inputs: collectVars(),
+      outputs: collectExportRows(),
       reason
     };
     const logs=getLogs(); logs.unshift(entry); setLogs(logs); if (qs('#tab-logs').classList.contains('active')) renderLogs();
@@ -751,7 +762,7 @@
   }
 
   /* =======================================================================
-     ADD-ON: Templates support (external templates.js + Templates panel)
+     ADD-ON: Templates panel (still works; just starts from shipped defaults)
      ======================================================================= */
 
   const SHIPPED_DEFAULTS = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
@@ -761,19 +772,9 @@
 
   const __init_orig = init;
   init = function(){
-    __init_orig();
+    __init_orig(); // already loaded shipped defaults in loadTemplates()
 
-    if (!localStorage.getItem(STORAGE.templates) && SHIPPED_DEFAULTS) {
-      try {
-        state.templates = JSON.parse(JSON.stringify(SHIPPED_DEFAULTS));
-        localStorage.setItem(STORAGE.templates, JSON.stringify(state.templates));
-        populateTypeSelect();
-        renderInputsForType();
-        renderPreview();
-        renderAdsCopyPreview();
-      } catch {}
-    }
-
+    // Keep panel actions usable
     buildLogTypeFilter();
     setupTemplatesPanel();
     refreshTemplatesPreview();
@@ -793,9 +794,8 @@
     const current = sel.value;
     sel.innerHTML = '<option value="">Any</option>';
     Object.keys(state.templates.types||{}).forEach(t=>{
-      const opt = document.createElement('option'); 
-      opt.value=t; 
-      // UPDATED: show nickname when present
+      const opt = document.createElement('option');
+      opt.value=t;
       opt.textContent=getTypeDisplayName(t);
       sel.appendChild(opt);
     });
@@ -868,6 +868,26 @@
       });
       addT2Btn.__kg_bound = true;
     }
+  }
+
+  // ===== Collect variables from inputs (placed here so functions exist above) =====
+  function collectVars(){
+    const v = {};
+    qsa('input[id^="in-keyword"]').forEach(inp=>{
+      const n = inp.id.match(/in-keyword(\d+)/)[1];
+      v['keyword'+n] = inp.value.trim();
+    });
+    const typeName = qs('#in-type').value;
+    if (typeHasVariables(typeName)) {
+      const vars = state.templates.types[typeName].variables;
+      vars.forEach(label => {
+        const clean = label.replace(/^\{|\}$/g,'');
+        const id = '#in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
+        const el = qs(id);
+        v[clean] = (el?.value ?? '').trim();
+      });
+    }
+    return v;
   }
 
 })();
