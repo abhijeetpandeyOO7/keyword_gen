@@ -204,7 +204,7 @@
   ['mousemove','keydown','touchstart','click'].forEach(e=>window.addEventListener(e,activity,{capture:true}));
   setInterval(()=>{ if(state.authed && Date.now()-state.lastActivity>IDLE_LIMIT_MS){ location.reload(); } },10_000);
   const applyTheme = t => document.documentElement.classList.toggle('light', t==='light');
-  applyTheme(localStorage.getItem(STORAGE.theme)||'dark');
+  applyTheme(localStorage.getItem(STORAGE.theme)||'light');
   qs('#theme-toggle')?.addEventListener('click',()=>{
     const next=document.documentElement.classList.contains('light')?'dark':'light';
     localStorage.setItem(STORAGE.theme,next);applyTheme(next);
