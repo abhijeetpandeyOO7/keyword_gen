@@ -14,12 +14,28 @@
 
   <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)">
-  <title>Google Ads Keyword & Ads Copy Generator</title>
+  <title>Google Ads Keyword & Ads Copy Generatort</title>
 
   <link rel="stylesheet" href="style.css" />
   <style>
     /* Optional tiny tweak so hidden tabs don't leave gaps */
     .tabs .tab[hidden] { display:none !important; }
+
+    /* Preserve template label casing */
+    #gen-form label { text-transform: none !important; letter-spacing: normal; }
+
+    /* Mobile-friendly grid in Generate tab */
+    #tab-generate .grid.two {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 12px;
+    }
+
+    /* Safe horizontal scroll for tables on phones */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Make toolbar buttons wrap on small screens */
+    .row.wrap { flex-wrap: wrap; gap: .5rem; }
   </style>
 </head>
 <body>
@@ -95,6 +111,7 @@
     <!-- Generate -->
     <section id="tab-generate" class="panel" role="tabpanel" aria-labelledby="Generate">
       <div class="grid two">
+        <!-- 1) Inputs -->
         <form id="gen-form" class="card" onsubmit="return false;" novalidate>
           <h3>Inputs</h3>
 
@@ -112,10 +129,11 @@
             <input id="session-id" type="text" readonly>
           </div>
 
-          <!-- Dynamic keyword inputs appear here -->
+          <!-- Dynamic keyword/variable inputs appear here -->
           <div id="kw-box" class="grid three" aria-live="polite"></div>
         </form>
 
+        <!-- 2) Ads Set -->
         <div class="card">
           <h3>Ads Set</h3>
           <!-- Toolbar -->
@@ -145,9 +163,48 @@
           <p class="muted small">
             Tip: tap/click any cell to copy it. Shortcuts (Ads Set): <kbd>Ctrl</kbd>+<kbd>E</kbd> → Export CSV
           </p>
+        </div>
 
-          <!-- Ads Copy (auto-created by JS if/when needed) -->
-          <div id="ads-copy-anchor"></div>
+        <!-- 3) Ads Copy — Particulars -->
+        <div class="card" id="card-ads-particulars">
+          <h3>Ads Copy — Particulars</h3>
+          <div class="row gap stack-on-small" id="ads-particulars-toolbar" style="margin:.25rem 0 .5rem 0;">
+            <div class="row gap wrap" aria-label="Ads Particulars actions">
+              <button type="button" class="btn" id="btn-ads-part-copy-all" title="Copy all (TSV)">Copy All</button>
+              <button type="button" class="btn" id="btn-ads-part-export-csv" title="Export CSV">Export CSV</button>
+              <button type="button" class="btn" id="btn-ads-part-export-json" title="Export JSON" hidden>Export JSON</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="ads-part-table" class="table">
+              <thead><tr><th>Particulars</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="muted small">
+            Shortcut: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> → Export CSV (this “Particulars” table)
+          </p>
+        </div>
+
+        <!-- 4) Ads Copy — Copy -->
+        <div class="card" id="card-ads-copyonly">
+          <h3>Ads Copy — Copy</h3>
+          <div class="row gap stack-on-small" id="ads-copyonly-toolbar" style="margin:.25rem 0 .5rem 0;">
+            <div class="row gap wrap" aria-label="Ads Copy actions">
+              <button type="button" class="btn" id="btn-ads-copy-copy-all" title="Copy all (TSV)">Copy All</button>
+              <button type="button" class="btn" id="btn-ads-copy-export-csv" title="Export CSV">Export CSV</button>
+              <button type="button" class="btn" id="btn-ads-copy-export-json" title="Export JSON" hidden>Export JSON</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="ads-copy-table" class="table">
+              <thead><tr><th>Ads Copy</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="muted small">
+            Shortcut: <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd> → Export CSV (this “Copy” table)
+          </p>
         </div>
       </div>
     </section>
@@ -169,10 +226,6 @@
               <button class="btn" id="tpl-export-json" type="button">Export JSON</button>
               <button class="btn" id="tpl-reset" type="button">Reset to Defaults</button>
             </div>
-            <!-- <div class="row gap" style="margin-top:10px">
-              <button class="btn" id="tpl-add-type2" type="button">Quick-add Type 2 (example)</button>
-              <span class="muted small">Adds/overwrites “Type 2” from shipped defaults.</span>
-            </div> -->
           </div>
           <div>
             <label for="tpl-preview">Current templates (read-only preview)</label>
@@ -232,7 +285,12 @@
     <h4>What it does</h4>
     <ul>
       <li>Generates a 3-column <b>Search</b> table — <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i> — for the selected <b>Type</b>.</li>
-      <li>If the Type defines Ads content, a 2-column <b>Ads Copy</b> table — <i>Particulars</i>, <i>Ads Copy</i> — is also shown.</li>
+      <li>If the Type defines Ads content, it is shown as two single-column tables in separate cards:
+        <ul>
+          <li><b>Ads Copy — Particulars</b> (1 column: Particulars)</li>
+          <li><b>Ads Copy — Copy</b> (1 column: Ads Copy)</li>
+        </ul>
+      </li>
       <li><b>Types can differ.</b> Each Type ships its own variables, sample placeholders, Search rows, and optional Ads rows. In menus and filters you’ll see the internal ID with nickname (e.g. <code>Type 1 (Brand_Appartment)</code>).</li>
       <li>Inputs are auto-generated from the Type’s <code>variables</code> list (e.g., <code>BUILDER + PROJECT</code>, <code>CITY</code>) or legacy <code>keywordN</code> usage.</li>
       <li>Runs fully offline. Templates/logs persist in <code>localStorage</code>; auth state is in <code>sessionStorage</code>.</li>
@@ -303,13 +361,15 @@
       <li><b>Exports</b>:
         <ul>
           <li><b>Search</b>: CSV (<code>outputs_search.*</code>) — JSON export is disabled in UI.</li>
-          <li><b>Ads</b>: CSV (<code>ads_copy.*</code>) — JSON export is hidden in UI.</li>
+          <li><b>Ads Copy — Particulars</b>: CSV (<code>ads_particulars.*</code>) — JSON export hidden.</li>
+          <li><b>Ads Copy — Copy</b>: CSV (<code>ads_copy.*</code>) — JSON export hidden.</li>
         </ul>
       </li>
       <li><b>Shortcuts</b>:
         <ul>
           <li><kbd>Ctrl</kbd>+<kbd>E</kbd> → Export CSV (Search)</li>
-          <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> → Export CSV (Ads)</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> → Export CSV (Ads Copy — Particulars)</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd> → Export CSV (Ads Copy — Copy)</li>
           <li><kbd>Ctrl</kbd>+<kbd>S</kbd> → Save log (manual)</li>
         </ul>
       </li>
@@ -509,6 +569,5 @@ Options -Indexes
   <script src="app.js"></script>
   <script src="gate-and-guards.js"></script>
 
-  
 </body>
 </html>

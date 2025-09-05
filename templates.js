@@ -80,7 +80,7 @@ window.KG_DEFAULT_TEMPLATES = {
                 {"particular":"Description 20","copy":"{PROJECT}, {JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3, TYPOLOGY 4, TYPOLOGY 5, TYPOLOGY 6} BHK Apartments, at {CITY} {LOCATION}. No Hidden Charges. Site Visit.","X": true}
               ],
               "variables": [
-                "BUILDER + PROJECT","LOCATION","TYPOLOGY 1","TYPOLOGY 2","TYPOLOGY 3","TYPOLOGY 4",
+                "BUILDER + PROJECT","LOCATION","Typology 1","TYPOLOGY 2","TYPOLOGY 3","TYPOLOGY 4",
                 "TYPOLOGY 5","TYPOLOGY 6","PROJECT","CITY","PRICE","PRICE RANGE","ROAD","SECTOR"
               ],
               "samples": {

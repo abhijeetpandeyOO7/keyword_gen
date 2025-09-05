@@ -1,4 +1,4 @@
-/* Keyword Generator — app.js (role-aware auth, variable-only transforms, ads filters) */
+/* Keyword Generator — app.js (role-aware auth, variable-only transforms, split ads tables) */
 (() => {
   // ===== Hashes provided by index.html (two only) =====
   const PUBLIC_HASH = window.KG_PUBLIC_HASH;
@@ -44,7 +44,7 @@
       }
     }
   };
-  
+
   /* Always require login on each load (and after BFCache restores) */
   try { sessionStorage.clear(); } catch {}
 
@@ -84,7 +84,7 @@
   const fmtDate = ts => new Date(ts).toLocaleString();
   const escapeTsv = v => String(v??'').replace(/\t/g,' ').replace(/\r?\n/g,' ');
 
-  // File helpers are used by Ads handlers; define them early
+  // File helpers
   const fileName = (base,ext)=>`${base}_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
   const saveFile = (name, content, type='text/plain') => {
     const blob = new Blob([content], {type});
@@ -106,9 +106,8 @@
     ta.remove(); return ok;
   }
 
-  // ===== NEW: Role gating (hide tabs for Public) =====
+  // ===== Role gating =====
   function applyRoleView(role){
-    // show all by default
     qsa('.tabs .tab').forEach(b=>{ b.hidden=false; b.style.display=''; b.setAttribute('aria-hidden','false'); });
     qsa('main .panel').forEach(p=>{ p.hidden=false; p.style.display=''; p.setAttribute('aria-hidden','false'); });
 
@@ -120,7 +119,6 @@
       qsa('main .panel').forEach(p=>{
         if(p.id!=='tab-generate'){ p.hidden=true; p.style.display='none'; p.setAttribute('aria-hidden','true'); }
       });
-      // select Generate tab
       const genBtn = qs('.tabs .tab[data-tab="generate"]');
       if(genBtn){
         qsa('.tabs .tab').forEach(b=>b.setAttribute('aria-selected','false'));
@@ -128,13 +126,12 @@
         genBtn.click?.();
       }
     } else {
-      // ensure something visible is selected
       const selected = qs('.tabs .tab[aria-selected="true"]') || qsa('.tabs .tab').find(b=>!b.hidden);
       selected?.click?.();
     }
   }
 
-  // ===== NEW: Auth with public/admin radio =====
+  // ===== Auth =====
   const gateEl=qs('#gate'), gatePass=qs('#gate-pass'), gateBtn=qs('#gate-enter'), gateErr=qs('#gate-error');
   const sha256Hex = async (text) => {
     const enc=new TextEncoder().encode(text);
@@ -165,7 +162,7 @@
   gatePass?.addEventListener('keydown',e=>{if(e.key==='Enter') tryAuth();});
   qs('#lock')?.addEventListener('click',()=>{ location.reload(); });
 
-  // ===== Admin prompt helpers (for guarded tabs/actions) =====
+  // ===== Admin prompts =====
   async function ensureAdmin() {
     if (state.adminAuthed) return true;
     const input = prompt('Admin password required:');
@@ -179,7 +176,7 @@
     try{ const hex = await sha256Hex(input); return hex===ADMIN_HASH; }catch{ return false; }
   }
 
-  // ===== Tabs (Logs/Templates protected for Public) =====
+  // ===== Tabs =====
   function setupTabs(){
     const nav = qs('#tabs');
     nav.addEventListener('click', async (e)=>{
@@ -221,8 +218,7 @@
       && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
       ? window.KG_DEFAULT_TEMPLATES
       : DEFAULT_TEMPLATES;
-    // Always reset to shipped defaults on each refresh
-    const result = JSON.parse(JSON.stringify(shipped));
+    const result = JSON.parse(JSON.stringify(shipped)); // always reset on refresh
     state.templates = result;
     lsSet(STORAGE.templates, result);
   };
@@ -238,10 +234,10 @@
     renderInputsForType();
     bindShortcuts();
     renderPreview();
-    renderAdsCopyPreview();
+    renderAdsTables();        // NEW: fill both Ads tables
   }
 
-  // ===== NEW: Dynamic placeholder helpers (samples) =====
+  // ===== Dynamic sample helpers =====
   function getTypeSamples(typeName){
     const shippedType = window.KG_DEFAULT_TEMPLATES?.types?.[typeName] || null;
     const storedType  = state.templates?.types?.[typeName] || null;
@@ -254,9 +250,7 @@
       if (typeof indexHint === 'number' && val[indexHint] != null) return String(val[indexHint]);
       return String(val[0] ?? '');
     }
-    if (typeof val === 'object') {
-      return String(val.sample ?? val.example ?? '');
-    }
+    if (typeof val === 'object') return String(val.sample ?? val.example ?? '');
     return String(val);
   }
   function sampleForLabel(typeName, rawLabel, indexHint){
@@ -274,9 +268,7 @@
     const kwMatch = clean.match(/^keyword(\d+)$/i);
     if (kwMatch) {
       const n = Number(kwMatch[1]);
-      if (Array.isArray(samples.keywords) && samples.keywords[n-1] != null) {
-        return String(samples.keywords[n-1]);
-      }
+      if (Array.isArray(samples.keywords) && samples.keywords[n-1] != null) return String(samples.keywords[n-1]);
       if (samples.keyword != null) return pickSampleValue(samples.keyword, n-1);
     }
     return '';
@@ -294,7 +286,7 @@
     if (typeHasVariables(typeName)) {
       const vars = state.templates.types[typeName].variables;
       vars.forEach(label => {
-        const clean = label.replace(/^\{|\}$/g,'');
+        const clean = label.replace(/^\{|\}$/g,'');           // keep case as in template
         const id = 'in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
         const sample = sampleForLabel(typeName, clean);
         const wrap = document.createElement('div');
@@ -313,12 +305,12 @@
     }
 
     qsa('#kw-box input').forEach(inp=>{
-      inp.addEventListener('input', ()=>{ renderPreview(); renderAdsCopyPreview(); scheduleAutoLog(); });
-      inp.addEventListener('change', ()=>{ renderPreview(); renderAdsCopyPreview(); scheduleAutoLog(true); });
+      inp.addEventListener('input', ()=>{ renderPreview(); renderAdsTables(); scheduleAutoLog(); });
+      inp.addEventListener('change', ()=>{ renderPreview(); renderAdsTables(); scheduleAutoLog(true); });
     });
   }
 
-  // ===== NEW: display helper for "Type ID (Nickname)" =====
+  // ===== Display helper for "Type ID (Nickname)" =====
   function getTypeDisplayName(typeId){
     const def = state.templates?.types?.[typeId];
     const nick = def && def.nickname ? ` (${def.nickname})` : '';
@@ -341,7 +333,7 @@
         sel.options[0].textContent = getTypeDisplayName(firstVal);
       }
     }
-    sel.addEventListener('change', ()=>{ renderInputsForType(); renderPreview(); renderAdsCopyPreview(); autoLogEvent(); });
+    sel.addEventListener('change', ()=>{ renderInputsForType(); renderPreview(); renderAdsTables(); autoLogEvent(); });
   }
 
   // ===== Helpers for legacy keywords =====
@@ -354,12 +346,12 @@
   }
 
   /* =========================
-     Template engine with VARIABLE-ONLY transforms
+     Template engine (VARIABLE-ONLY transforms)
      ========================= */
   const varLowerUnderscore = (s='') =>
     String(s).trim().toLowerCase().replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
   const varLowerSpaces = (s='') =>
-    String(s).trim().toLowerCase(); // preserve spaces as typed
+    String(s).trim().toLowerCase(); // keep spaces
   const varTitleCase = (s='') => titleCase(String(s).trim());
   const normalizeSlashTight = (s='') => String(s).replace(/\s*\/\s*/g,'/');
 
@@ -392,7 +384,7 @@
   }
 
   /* =========================
-     Inline JOIN helpers
+     JOIN helpers
      ========================= */
   function parseJoinLabels(str=''){
     const labels = [];
@@ -424,7 +416,7 @@
   }
 
   /* =========================
-     Row filtering logic
+     Row filtering
      ========================= */
   function extractKeywordIndexesFromPlaceholders(str=''){
     const set = new Set();
@@ -444,7 +436,7 @@
     let m; 
     while((m = re.exec(str))){
       const label = m[1].replace(/^\{|\}$/g,'').trim();
-      if (/^JOIN:/i.test(label)) continue; // skip inline JOIN
+      if (/^JOIN:/i.test(label)) continue;
       set.add(label);
     }
     return set;
@@ -494,86 +486,6 @@
     });
   }
 
-  // ===== Ensure Ads table (and toolbar) exist in DOM =====
-  function ensureAdsTable(){
-    const previewCard = qs('#preview-table')?.closest('.card');
-    if(!previewCard) return;
-
-    if (!qs('#ads-copy-block')) {
-      const wrap = document.createElement('div');
-      wrap.id = 'ads-copy-block';
-      wrap.innerHTML = `
-        <h3 style="margin-top:1rem">Ads Copy</h3>
-        <div class="row gap stack-on-small" id="ads-toolbar" style="margin: .25rem 0 .5rem 0;">
-          <div class="row gap wrap" aria-label="Ads actions">
-            <button type="button" class="btn" id="btn-ads-copy-all" title="Copy all Ads rows (TSV)">Copy All</button>
-            <button type="button" class="btn" id="btn-ads-export-csv" title="Export Ads CSV">Export CSV</button>
-            <button type="button" class="btn" id="btn-ads-export-json" title="Export Ads JSON" hidden>Export JSON</button>
-          </div>
-        </div>
-        <div class="table-wrap" id="adscopy-wrap">
-          <table id="ads-table" class="table">
-            <thead><tr><th>Particulars</th><th>Ads Copy</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <p class="muted small">
-          Tip: tap/click any cell to copy it. Shortcut (Ads Copy): <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> → Export CSV
-        </p>
-      `;
-      previewCard.appendChild(wrap);
-
-      // Wire Ads toolbar once
-      qs('#btn-ads-copy-all').addEventListener('click', async ()=>{
-        const rows = collectAdsExportRows();
-        const header = ['Particulars','Ads Copy'];
-        const lines = [header.map(escapeTsv).join('\t')];
-        rows.forEach(r=>lines.push([escapeTsv(r['Particulars']), escapeTsv(r['Ads Copy'])].join('\t')));
-        const ok = await copyText(lines.join('\n'));
-        autoLogEvent?.();
-        if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
-      });
-
-      qs('#btn-ads-export-csv').addEventListener('click', ()=>{
-        const rows = collectAdsExportRows();
-        const header = ['Particulars','Ads Copy'];
-        const lines = [header.map(escapeCsv).join(',')];
-        rows.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
-        saveFile(fileName('ads_copy','csv'), lines.join('\n'), 'text/csv');
-        autoLogEvent?.();
-      });
-
-      qs('#btn-ads-export-json').addEventListener('click', ()=>{
-        const rows = collectAdsExportRows();
-        saveFile(fileName('ads_copy','json'), JSON.stringify(rows, null, 2), 'application/json');
-        autoLogEvent?.();
-      });
-
-      // Bind Ads-specific shortcut once (Export only)
-      bindAdsShortcutOnce();
-    }
-  }
-
-  // ---- One-time Ads shortcut (Ctrl+Shift+E only) ----
-  function bindAdsShortcutOnce(){
-    if (window.__adsShortcutBound) return;
-    window.__adsShortcutBound = true;
-
-    document.addEventListener('keydown', (e)=>{
-      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-      const isEditable = tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable);
-      if (isEditable) return;
-
-      if (e.ctrlKey && e.shiftKey && e.code === 'KeyE') {
-        const btn = qs('#btn-ads-export-csv');
-        if (btn) {
-          e.preventDefault();
-          btn.click();
-        }
-      }
-    }, { passive: true });
-  }
-
   // ===== Accessors for rows =====
   function getSearchRows(def){
     if (Array.isArray(def?.searchRows)) return def.searchRows;
@@ -593,7 +505,7 @@
   }
 
   /* =========================
-     PREVIEW RENDER (variable-only transforms)
+     PREVIEW RENDER (Search table)
      ========================= */
   function renderPreview(){
     const tbody = qs('#preview-table tbody'); if(!tbody) return;
@@ -642,11 +554,15 @@
   }
 
   /* =========================
-     ADS COPY RENDER (TitleCase vars + JOIN + filters)
+     ADS TABLES (Two separate cards)
      ========================= */
-  function renderAdsCopyPreview(){
-    ensureAdsTable();
-    const tbody = qs('#ads-table tbody'); if(!tbody) return;
+  function renderAdsTables(){
+    renderAdsParticulars();
+    renderAdsCopyOnly();
+  }
+
+  function renderAdsParticulars(){
+    const tbody = qs('#ads-part-table tbody'); if(!tbody) return;
     tbody.innerHTML='';
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName]; if(!def) return;
@@ -657,28 +573,44 @@
 
     rows.forEach(r=>{
       const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.className = 'copyable';
+      const txt = (r.particular ?? r.particulars ?? '').trim();
+      td.dataset.copy = txt;
+      td.textContent = txt;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
+  }
 
-      const td1 = document.createElement('td');
-      td1.textContent = r.particular ?? r.particulars ?? '';
+  function renderAdsCopyOnly(){
+    const tbody = qs('#ads-copy-table tbody'); if(!tbody) return;
+    tbody.innerHTML='';
+    const typeName = qs('#in-type').value;
+    const def = state.templates.types[typeName]; if(!def) return;
 
-      const td2 = document.createElement('td');
+    const allRows = getAdsRows(def);
+    const vars = collectVars();
+    const rows = filterAdsRowsByVars(allRows, vars);
+
+    rows.forEach(r=>{
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
       let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
       let out = evaluateWithTransforms(expanded, vars, {
         namedTransform:  varTitleCase,
         legacyTransform: varTitleCase
       });
       out = normalizeSlashTight(out).trim();
-
-      td2.className = 'copyable';
-      td2.dataset.copy = out;
-      td2.textContent = out;
-
-      tr.appendChild(td1); tr.appendChild(td2);
+      td.className = 'copyable';
+      td.dataset.copy = out;
+      td.textContent = out;
+      tr.appendChild(td);
       tbody.appendChild(tr);
     });
   }
 
-  // cell click-to-copy (both tables)
+  // ===== Copy-to-clipboard (all tables)
   document.addEventListener('click', async (e)=>{
     const td = e.target.closest('td.copyable'); if(!td) return;
     const text = td.dataset.copy ?? td.textContent.trim();
@@ -688,7 +620,8 @@
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   }, {capture:true});
 
-  // ===== Buttons / export (SEARCH table only) =====
+  // ===== Export/Copy buttons =====
+  // Search / Ads Set
   qs('#btn-copy-all')?.addEventListener('click',async ()=> {
     const out = collectExportRows();
     const header = Object.keys(out[0]||{campaign:'',adset:'',keywords:''});
@@ -709,6 +642,36 @@
     const lines = [header.map(escapeCsv).join(',')];
     out.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
     saveFile(fileName('outputs_search','csv'), lines.join('\n'), 'text/csv');
+    autoLogEvent();
+  });
+
+  // Ads Copy — Particulars
+  qs('#btn-ads-part-copy-all')?.addEventListener('click', async ()=>{
+    const rows = collectAdsParticularsRows();
+    const lines = ['Particulars', ...rows.map(r=>escapeTsv(r['Particulars']))];
+    const ok = await copyText(lines.join('\n'));
+    autoLogEvent();
+    if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
+  });
+  qs('#btn-ads-part-export-csv')?.addEventListener('click', ()=>{
+    const rows = collectAdsParticularsRows();
+    const lines = ['Particulars', ...rows.map(r=>escapeCsv(r['Particulars']))];
+    saveFile(fileName('ads_particulars','csv'), lines.join('\n'), 'text/csv');
+    autoLogEvent();
+  });
+
+  // Ads Copy — Copy
+  qs('#btn-ads-copy-copy-all')?.addEventListener('click', async ()=>{
+    const rows = collectAdsCopyRows();
+    const lines = ['Ads Copy', ...rows.map(r=>escapeTsv(r['Ads Copy']))];
+    const ok = await copyText(lines.join('\n'));
+    autoLogEvent();
+    if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
+  });
+  qs('#btn-ads-copy-export-csv')?.addEventListener('click', ()=>{
+    const rows = collectAdsCopyRows();
+    const lines = ['Ads Copy', ...rows.map(r=>escapeCsv(r['Ads Copy']))];
+    saveFile(fileName('ads_copy','csv'), lines.join('\n'), 'text/csv');
     autoLogEvent();
   });
 
@@ -734,22 +697,29 @@
     });
   }
 
-  // Ads Copy export rows
-  function collectAdsExportRows(){
+  function collectAdsParticularsRows(){
+    const typeName = qs('#in-type').value;
+    const def = state.templates.types[typeName];
+    const allRows = getAdsRows(def);
+    const vars = collectVars();
+    const rows = filterAdsRowsByVars(allRows, vars);
+    return rows.map(r=>({ "Particulars": (r.particular ?? r.particulars ?? '').trim() }));
+  }
+
+  function collectAdsCopyRows(){
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName];
     const allRows = getAdsRows(def);
     const vars = collectVars();
     const rows = filterAdsRowsByVars(allRows, vars);
     return rows.map(r=>{
-      const particulars = r.particular ?? r.particulars ?? '';
       let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
       let copy = evaluateWithTransforms(expanded, vars, {
         namedTransform:  varTitleCase,
         legacyTransform: varTitleCase
       });
       copy = normalizeSlashTight(copy).trim();
-      return { "Particulars": particulars, "Ads Copy": copy };
+      return { "Ads Copy": copy };
     });
   }
 
@@ -826,18 +796,34 @@
     }
   }
   function autoLogEvent(){ if(!state.autoLog) return; saveLog('action'); }
+
+  // === Keyboard shortcuts (3 total)
   function bindShortcuts(){
     document.addEventListener('keydown', (e)=>{
       const tag=(e.target?.tagName||'').toLowerCase();
       if(tag==='input'||tag==='textarea'||e.target?.isContentEditable) return;
+
+      // Ads Set CSV
+      if(e.ctrlKey && !e.shiftKey && !e.altKey && e.code==='KeyE'){
+        e.preventDefault(); qs('#btn-export-csv')?.click(); return;
+      }
+      // Ads Copy — Particulars CSV
+      if(e.ctrlKey && e.shiftKey && !e.altKey && e.code==='KeyE'){
+        e.preventDefault(); qs('#btn-ads-part-export-csv')?.click(); return;
+      }
+      // Ads Copy — Copy CSV
+      if(e.ctrlKey && e.altKey && e.code==='KeyE'){
+        e.preventDefault(); qs('#btn-ads-copy-export-csv')?.click(); return;
+      }
+
+      // Manual save logs (unchanged)
       if(e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); saveLog('manual'); }
-      if(e.ctrlKey && !e.shiftKey && e.code==='KeyE'){ e.preventDefault(); qs('#btn-export-csv')?.click(); }
     });
   }
 
-  /* =======================================================================
+  /* =========================
      Templates panel helpers
-     ======================================================================= */
+     ========================= */
   const SHIPPED_DEFAULTS = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
     && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
     ? window.KG_DEFAULT_TEMPLATES
@@ -886,7 +872,7 @@
     populateTypeSelect();
     renderInputsForType();
     renderPreview();
-    renderAdsCopyPreview();
+    renderAdsTables();
     buildLogTypeFilter();
     refreshTemplatesPreview();
     alert('Templates loaded.');
@@ -953,7 +939,7 @@
     if (typeHasVariables(typeName)) {
       const vars = state.templates.types[typeName].variables;
       vars.forEach(label => {
-        const clean = label.replace(/^\{|\}$/g,'');
+        const clean = label.replace(/^\{|\}$/g,'');  // keep case as-is
         const id = '#in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
         const el = qs(id);
         v[clean] = (el?.value ?? '').trim();
