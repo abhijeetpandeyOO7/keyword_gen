@@ -1,69 +1,33 @@
-/* Keyword Generator — app.js (role-aware auth, variable-only transforms, split ads tables) */
+/* Keyword Generator — app.js
+   Role-aware auth, variable-only transforms,
+   Ads Copy combined into two sections: Heading & Description (2 columns each)
+*/
 (() => {
-  // ===== Hashes provided by index.html (two only) =====
   const PUBLIC_HASH = window.KG_PUBLIC_HASH;
   const ADMIN_HASH  = window.KG_ADMIN_HASH;
 
   const STORAGE = { templates:'kg_templates_v3', logs:'kg_logs_v3', theme:'kg_theme' };
   const IDLE_LIMIT_MS = 30*60*1000;
 
-  // Force re-login on every refresh (as before)
   try { sessionStorage.removeItem('kg_auth'); } catch {}
 
-  // ===== Default Templates (legacy Type 1 with keyword8) =====
-  const DEFAULT_TEMPLATES = {
-    types: {
-      "Type 1 (legacy)": {
-        columns: ["Campaign Name", "Adset Name", "Keywords"],
-        rows: [
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1",                 keywords:"{{keyword1}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_keyword2",        keywords:"{{keyword1}} {{keyword2}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_keyword3",        keywords:"{{keyword1}} {{keyword3}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_keyword4",        keywords:"{{keyword1}} {{keyword4}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_keyword5",        keywords:"{{keyword1}} {{keyword5}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_keyword6",        keywords:"{{keyword1}} {{keyword6}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_keyword7",        keywords:"{{keyword1}} {{keyword7}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_keyword8",        keywords:"{{keyword1}} {{keyword8}}"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_amenities",       keywords:"{{keyword1}} amenities"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_best_offers",     keywords:"{{keyword1}} best offers"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_booking",         keywords:"{{keyword1}} booking"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_construction_status", keywords:"{{keyword1}} construction status"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_floor_plan",      keywords:"{{keyword1}} floor plan"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_launch_price",    keywords:"{{keyword1}} launch price"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_launch_date",     keywords:"{{keyword1}} launch date"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_location",        keywords:"{{keyword1}} location"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_master_plan",     keywords:"{{keyword1}} master plan"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_payment_plan",    keywords:"{{keyword1}} payment plan"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_possession_date", keywords:"{{keyword1}} possession date"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_price",           keywords:"{{keyword1}} price"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_rera_number",     keywords:"{{keyword1}} rera number"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_reviews",         keywords:"{{keyword1}} reviews"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_site_visit",      keywords:"{{keyword1}} site visit"},
-          {campaign:"BRAND_{{keyword1.slug}}_search", adset:"keyword1_specifications",  keywords:"{{keyword1}} specifications"}
-        ]
-      }
-    }
-  };
+  // ===== Minimal fallback (not used when templates.js is shipped) =====
+  const DEFAULT_TEMPLATES = { types: { "Type 1 (legacy)": { columns:["Campaign Name","Adset Name","Keywords"], rows: [] } } };
 
-  /* Always require login on each load (and after BFCache restores) */
   try { sessionStorage.clear(); } catch {}
 
   document.addEventListener('DOMContentLoaded', () => {
     const gate = document.getElementById('gate');
     if (gate) {
-      gate.classList.remove('hidden');            // show the gate
+      gate.classList.remove('hidden');
       const pass = document.getElementById('gate-pass');
-      if (pass) pass.value = '';                  // clear any prefilled value
-      // default role to Public
+      if (pass) pass.value = '';
       const publicOpt = document.querySelector('input[name="gate-role"][value="public"]');
       if (publicOpt) publicOpt.checked = true;
     }
   });
 
-  // If the page is restored from the browser’s back-forward cache, force a hard reload
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted) location.reload();
-  });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 
   // ===== State & utils =====
   let state = {
@@ -75,24 +39,17 @@
 
   const qs  = (s,r=document)=>r.querySelector(s);
   const qsa = (s,r=document)=>Array.from(r.querySelectorAll(s));
+
   const todayYMD = () => new Date().toISOString().slice(0,10);
   const timestamp = () => String(Date.now());
   const titleCase = (s='') => s.replace(/\w\S*/g, t=>t[0]?.toUpperCase()+t.slice(1).toLowerCase());
   const slugify = (s='') => (s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').replace(/--+/g,'-');
   const escapeHtml = (s='') => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const escapeCsv = v => /[",\n]/.test(String(v??'')) ? `"${String(v).replace(/"/g,'""')}"` : String(v??'');
-  const fmtDate = ts => new Date(ts).toLocaleString();
   const escapeTsv = v => String(v??'').replace(/\t/g,' ').replace(/\r?\n/g,' ');
+  const fmtDate = ts => new Date(ts).toLocaleString();
 
-  // === helpers (don’t break existing code) ===
   const oneOf = (...sels) => sels.map(s=>qs(s)).find(Boolean) || null;
-  const manyOf = (...sels) => sels.flatMap(s => Array.from(document.querySelectorAll(s)));
-  const addClick = (selectors, handler) => {
-    selectors.forEach(sel => {
-      const el = qs(sel);
-      if (el && !el.__kg_bound) { el.addEventListener('click', handler); el.__kg_bound = true; }
-    });
-  };
 
   // File helpers
   const fileName = (base,ext)=>`${base}_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
@@ -141,7 +98,6 @@
     }
   }
 
-  // ===== Auth =====
   const gateEl=qs('#gate'), gatePass=qs('#gate-pass'), gateBtn=qs('#gate-enter'), gateErr=qs('#gate-error');
   const sha256Hex = async (text) => {
     const enc=new TextEncoder().encode(text);
@@ -217,18 +173,17 @@
     localStorage.setItem(STORAGE.theme,next);applyTheme(next);
   });
 
-  /* =========================
-     Template loading (ALWAYS RESET TO SHIPPED DEFAULTS ON REFRESH)
-     ========================= */
+  // ===== localStorage helpers =====
   const lsGet = (k, fallback) => { try { const raw = localStorage.getItem(k); return raw==null ? fallback : JSON.parse(raw); } catch { return fallback; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { console.warn('localStorage write failed for', k); return false; } };
 
+  // ===== Templates load: ALWAYS reset to shipped defaults on refresh =====
   const loadTemplates=()=>{
     const shipped = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
       && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
       ? window.KG_DEFAULT_TEMPLATES
       : DEFAULT_TEMPLATES;
-    const result = JSON.parse(JSON.stringify(shipped)); // always reset on refresh
+    const result = JSON.parse(JSON.stringify(shipped)); // deep clone
     state.templates = result;
     lsSet(STORAGE.templates, result);
   };
@@ -244,21 +199,11 @@
     renderInputsForType();
     bindShortcuts();
     renderPreview();
-    renderAdsTables();        // NEW: fill both Ads tables
-
-    // Hide legacy combined Ads Copy card now + whenever DOM changes
-    hideLegacyCombinedAdsCopyCard();
-    observeForLegacyAdsCopy();
+    renderAdsTables(); // NEW: combined Heading/Description tables
   }
 
   // ===== Dynamic sample helpers =====
-  function getTypeSamples(typeName){
-    const shippedType = window.KG_DEFAULT_TEMPLATES?.types?.[typeName] || null;
-    const storedType  = state.templates?.types?.[typeName] || null;
-    return (shippedType?.samples || shippedType?.sampleValues ||
-            storedType?.samples  || storedType?.sampleValues  || {});
-  }
-  function pickSampleValue(val, indexHint){
+  const pickSampleValue = (val, indexHint)=>{
     if (val == null) return '';
     if (Array.isArray(val)) {
       if (typeof indexHint === 'number' && val[indexHint] != null) return String(val[indexHint]);
@@ -266,6 +211,12 @@
     }
     if (typeof val === 'object') return String(val.sample ?? val.example ?? '');
     return String(val);
+  };
+  function getTypeSamples(typeName){
+    const shippedType = window.KG_DEFAULT_TEMPLATES?.types?.[typeName] || null;
+    const storedType  = state.templates?.types?.[typeName] || null;
+    return (shippedType?.samples || shippedType?.sampleValues ||
+            storedType?.samples  || storedType?.sampleValues  || {});
   }
   function sampleForLabel(typeName, rawLabel, indexHint){
     const samples = getTypeSamples(typeName) || {};
@@ -289,6 +240,7 @@
   }
 
   // ===== Inputs =====
+  const slugifySafe = s => slugify(s).replace(/[^a-z0-9-]/g,'-');
   function typeHasVariables(typeName){
     return !!(state.templates.types[typeName] && Array.isArray(state.templates.types[typeName].variables));
   }
@@ -300,20 +252,19 @@
     if (typeHasVariables(typeName)) {
       const vars = state.templates.types[typeName].variables;
       vars.forEach(label => {
-        const clean = label.replace(/^\{|\}$/g,'');           // keep case as in template
-        const id = 'in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
+        const clean = label.replace(/^\{|\}$/g,'');
+        const id = 'in-var-' + slugifySafe(clean);
         const sample = sampleForLabel(typeName, clean);
         const wrap = document.createElement('div');
         wrap.innerHTML = `<label>${escapeHtml(clean)}</label><input type="text" id="${id}" placeholder="${escapeHtml(sample)}">`;
         box.appendChild(wrap);
       });
     } else {
-      const maxN = maxKeywordIndexInType(typeName);
+      const maxN = 3;
       for(let i=1;i<=maxN;i++){
         const wrap = document.createElement('div');
         const key = `keyword${i}`;
-        const sample = sampleForLabel(typeName, key, i-1);
-        wrap.innerHTML = `<label>${key} ${i===1?'(required)':''}</label><input type="text" id="in-${key}" placeholder="${escapeHtml(sample)}">`;
+        wrap.innerHTML = `<label>${key} ${i===1?'(required)':''}</label><input type="text" id="in-${key}" placeholder="">`;
         box.appendChild(wrap);
       }
     }
@@ -324,7 +275,6 @@
     });
   }
 
-  // ===== Display helper for "Type ID (Nickname)" =====
   function getTypeDisplayName(typeId){
     const def = state.templates?.types?.[typeId];
     const nick = def && def.nickname ? ` (${def.nickname})` : '';
@@ -339,35 +289,19 @@
         o.value=t;
         o.textContent=getTypeDisplayName(t);
         sel.appendChild(o);
+      } else {
+        // update display text for first option too
+        sel.options[0].textContent = getTypeDisplayName(t);
       }
     });
-    if (sel.options.length > 0) {
-      const firstVal = sel.options[0].value;
-      if (state.templates.types[firstVal]?.nickname) {
-        sel.options[0].textContent = getTypeDisplayName(firstVal);
-      }
-    }
     sel.addEventListener('change', ()=>{ renderInputsForType(); renderPreview(); renderAdsTables(); autoLogEvent(); });
   }
 
-  // ===== Helpers for legacy keywords =====
-  function maxKeywordIndexInType(typeName){
-    const type = state.templates.types[typeName];
-    if(!type) return 3;
-    const scan = JSON.stringify(type);
-    const m = [...scan.matchAll(/{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi)].map(x=>Number(x[1]));
-    return m.length ? Math.max(...m) : 3;
-  }
-
-  /* =========================
-     Template engine (VARIABLE-ONLY transforms)
-     ========================= */
-  const varLowerUnderscore = (s='') =>
-    String(s).trim().toLowerCase().replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
-  const varLowerSpaces = (s='') =>
-    String(s).trim().toLowerCase(); // keep spaces
-  const varTitleCase = (s='') => titleCase(String(s).trim());
-  const normalizeSlashTight = (s='') => String(s).replace(/\s*\/\s*/g,'/');
+  // ===== Template engine (VARIABLE-ONLY transforms) =====
+  const varLowerUnderscore = (s='') => String(s).trim().toLowerCase().replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
+  const varLowerSpaces     = (s='') => String(s).trim().toLowerCase();
+  const varTitleCase       = (s='') => titleCase(String(s).trim());
+  const normalizeSlashTight= (s='') => String(s).replace(/\s*\/\s*/g,'/');
 
   function evaluateWithTransforms(tpl, vars, {namedTransform, legacyTransform} = {}){
     if(!tpl) return '';
@@ -397,9 +331,7 @@
     return tpl;
   }
 
-  /* =========================
-     JOIN helpers
-     ========================= */
+  // ===== JOIN helpers =====
   function parseJoinLabels(str=''){
     const labels = [];
     const re = /{\s*JOIN:([^{}]+)\s*}/gi;
@@ -429,21 +361,7 @@
     });
   }
 
-  /* =========================
-     Row filtering
-     ========================= */
-  function extractKeywordIndexesFromPlaceholders(str=''){
-    const set = new Set();
-    const re = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
-    let m; while((m = re.exec(str))){ set.add(Number(m[1])); }
-    return set;
-  }
-  function extractKeywordIndexesFromLiterals(str=''){
-    const set = new Set();
-    const re = /(^|[^a-z0-9])keyword(\d+)(?=$|[^a-z0-9])/gi;
-    let m; while((m = re.exec(str))){ set.add(Number(m[2])); }
-    return set;
-  }
+  // ===== Row filtering =====
   function extractNamedLabels(str=''){
     const set = new Set();
     const re = /{\s*([^{}]+?)\s*}/g;
@@ -455,40 +373,16 @@
     }
     return set;
   }
-  function requiredRefsForSearchRow(row){
-    const s1p = extractKeywordIndexesFromPlaceholders(row.campaign || '');
-    const s2p = extractKeywordIndexesFromPlaceholders(row.adset || '');
-    const s3p = extractKeywordIndexesFromPlaceholders(row.keywords || '');
-    const s1l = extractKeywordIndexesFromLiterals(row.campaign || '');
-    const s2l = extractKeywordIndexesFromLiterals(row.adset || '');
-    const s3l = extractKeywordIndexesFromLiterals(row.keywords || '');
-    const s1n = extractNamedLabels(row.campaign || '');
-    const s2n = extractNamedLabels(row.adset || '');
-    const s3n = extractNamedLabels(row.keywords || '');
-    return {
-      keywordIdx: new Set([...s1p, ...s2p, ...s3p, ...s1l, ...s2l, ...s3l]),
-      named:      new Set([...s1n, ...s2n, ...s3n])
-    };
-  }
   function requiredRefsForAdsRow(row){
     const n = extractNamedLabels(row.copy || '');
-    const kp = extractKeywordIndexesFromPlaceholders(row.copy || '');
-    const kl = extractKeywordIndexesFromLiterals(row.copy || '');
-    return { keywordIdx: new Set([...kp, ...kl]), named: n };
+    return { named: n };
   }
   function rowHasAllVars(refs, vars){
-    for (const idx of refs.keywordIdx){
-      const v = vars['keyword'+idx];
-      if (!v || !String(v).trim()) return false;
-    }
-    for (const label of refs.named){
+    for (const label of (refs.named || [])){
       const v = vars[label];
       if (v == null || !String(v).trim()) return false;
     }
     return true;
-  }
-  function filterSearchRowsByVars(rows, vars){
-    return rows.filter(r => rowHasAllVars(requiredRefsForSearchRow(r), vars));
   }
   function filterAdsRowsByVars(rows, vars){
     return rows.filter(r => {
@@ -518,9 +412,7 @@
     return [];
   }
 
-  /* =========================
-     PREVIEW RENDER (Search table)
-     ========================= */
+  // ===== PREVIEW (Search table) =====
   function renderPreview(){
     const tbody = qs('#preview-table tbody'); if(!tbody) return;
     tbody.innerHTML='';
@@ -530,35 +422,27 @@
 
     const rows = getSearchRows(def);
     const vars = collectVars();
-    const visibleRows = filterSearchRowsByVars(rows, vars);
+    // Search previously filtered by required vars (legacy behavior).
+    const visibleRows = rows; // keep all visible so user can see structure
 
     visibleRows.forEach(r=>{
       const tr = document.createElement('tr');
 
       const td1 = document.createElement('td');
       td1.className = 'copyable';
-      const c = evaluateWithTransforms(r.campaign, vars, {
-        namedTransform:  varLowerUnderscore,
-        legacyTransform: varLowerUnderscore
-      });
+      const c = evaluateWithTransforms(r.campaign, vars, { namedTransform:varLowerUnderscore, legacyTransform:varLowerUnderscore });
       td1.dataset.copy = c;
       td1.appendChild(Object.assign(document.createElement('code'),{textContent:c}));
 
       const td2 = document.createElement('td');
       td2.className = 'copyable';
-      const a = evaluateWithTransforms(r.adset, vars, {
-        namedTransform:  varLowerUnderscore,
-        legacyTransform: varLowerUnderscore
-      });
+      const a = evaluateWithTransforms(r.adset, vars, { namedTransform:varLowerUnderscore, legacyTransform:varLowerUnderscore });
       td2.dataset.copy = a;
       td2.appendChild(Object.assign(document.createElement('code'),{textContent:a}));
 
       const td3 = document.createElement('td');
       td3.className = 'copyable';
-      const k = evaluateWithTransforms(r.keywords, vars, {
-        namedTransform:  varLowerSpaces,
-        legacyTransform: varLowerSpaces
-      });
+      const k = evaluateWithTransforms(r.keywords, vars, { namedTransform:varLowerSpaces, legacyTransform:varLowerSpaces });
       td3.dataset.copy = k;
       td3.textContent = k;
 
@@ -567,74 +451,57 @@
     });
   }
 
-  /* =========================
-     ADS TABLES (Two separate cards)
-     ========================= */
+  // ===== ADS TABLES (combined, split by section) =====
+  function adSectionOf(row){
+    if (row.section === 'heading' || row.section === 'description') return row.section;
+    const p = (row.particular ?? '').toLowerCase();
+    if (p.startsWith('description')) return 'description';
+    if (/^(h\d\b|[12]\s*-)/.test(p)) return 'heading'; // H1/H2/H3... or "1 -", "2 -"
+    return 'heading'; // default fallback
+  }
+
   function renderAdsTables(){
-    renderAdsParticulars();
-    renderAdsCopyOnly();
+    renderAdsSection('heading', '#ads-head-table tbody');
+    renderAdsSection('description', '#ads-desc-table tbody');
   }
 
-  // render Ads Copy — Particulars to either old or new table IDs
-  function renderAdsParticulars(){
-    const tbodies = manyOf('#ads-part-table tbody', '#ads-particulars-table tbody');
-    if(tbodies.length===0) return;
-    tbodies.forEach(t=>t.innerHTML='');
+  function renderAdsSection(which, tbodySel){
+    const tbody = qs(tbodySel); if(!tbody) return;
+    tbody.innerHTML='';
 
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName]; if(!def) return;
 
     const allRows = getAdsRows(def);
     const vars = collectVars();
-    const rows = filterAdsRowsByVars(allRows, vars);
+    const rows = filterAdsRowsByVars(allRows, vars)
+                  .filter(r => adSectionOf(r) === which);
 
-    tbodies.forEach(tbody=>{
-      rows.forEach(r=>{
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.className = 'copyable';
-        const txt = (r.particular ?? r.particulars ?? '').trim();
-        td.dataset.copy = txt;
-        td.textContent = txt;
-        tr.appendChild(td);
-        tbody.appendChild(tr);
-      });
+    rows.forEach(r=>{
+      const tr = document.createElement('tr');
+
+      // Particulars cell
+      const tdP = document.createElement('td');
+      tdP.className = 'copyable';
+      const ptxt = (r.particular ?? r.particulars ?? '').trim();
+      tdP.dataset.copy = ptxt;
+      tdP.textContent = ptxt;
+
+      // Copy cell
+      const tdC = document.createElement('td');
+      tdC.className = 'copyable';
+      let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
+      let out = evaluateWithTransforms(expanded, vars, { namedTransform:varTitleCase, legacyTransform:varTitleCase });
+      out = normalizeSlashTight(out).trim();
+      tdC.dataset.copy = out;
+      tdC.textContent = out;
+
+      tr.appendChild(tdP); tr.appendChild(tdC);
+      tbody.appendChild(tr);
     });
   }
 
-  // render Ads Copy — Copy to either old or new table IDs
-  function renderAdsCopyOnly(){
-    const tbodies = manyOf('#ads-copy-table tbody', '#ads-copyonly-table tbody');
-    if(tbodies.length===0) return;
-    tbodies.forEach(t=>t.innerHTML='');
-
-    const typeName = qs('#in-type').value;
-    const def = state.templates.types[typeName]; if(!def) return;
-
-    const allRows = getAdsRows(def);
-    const vars = collectVars();
-    const rows = filterAdsRowsByVars(allRows, vars);
-
-    tbodies.forEach(tbody=>{
-      rows.forEach(r=>{
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
-        let out = evaluateWithTransforms(expanded, vars, {
-          namedTransform:  varTitleCase,
-          legacyTransform: varTitleCase
-        });
-        out = normalizeSlashTight(out).trim();
-        td.className = 'copyable';
-        td.dataset.copy = out;
-        td.textContent = out;
-        tr.appendChild(td);
-        tbody.appendChild(tr);
-      });
-    });
-  }
-
-  // ===== Copy-to-clipboard (all tables)
+  // ===== Copy-to-clipboard on cell click =====
   document.addEventListener('click', async (e)=>{
     const td = e.target.closest('td.copyable'); if(!td) return;
     const text = td.dataset.copy ?? td.textContent.trim();
@@ -644,8 +511,7 @@
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   }, {capture:true});
 
-  // ===== Export/Copy buttons =====
-  // Search / Ads Set
+  // ===== Export/Copy: Search =====
   qs('#btn-copy-all')?.addEventListener('click',async ()=> {
     const out = collectExportRows();
     const header = Object.keys(out[0]||{campaign:'',adset:'',keywords:''});
@@ -655,115 +521,87 @@
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   });
-  qs('#btn-export-json')?.addEventListener('click',()=>{
-    const out = collectExportRows();
-    saveFile(fileName('outputs_search','json'), JSON.stringify(out, null, 2), 'application/json');
-    autoLogEvent();
-  });
-  qs('#btn-export-csv')?.addEventListener('click',()=>{
+  qs('#btn-export-json')?.addEventListener('click',()=>{ saveFile(fileName('outputs_search','json'), JSON.stringify(collectExportRows(), null, 2), 'application/json'); autoLogEvent(); });
+  qs('#btn-export-csv')?.addEventListener('click',()=> {
     const out = collectExportRows();
     const header = Object.keys(out[0]||{campaign:'',adset:'',keywords:''});
     const lines = [header.map(escapeCsv).join(',')];
     out.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
-    saveFile(fileName('outputs_search','csv'), lines.join('\n'), 'text/csv');
-    autoLogEvent();
-  });
-
-  // Ads Copy — Particulars (new and old IDs)
-  addClick(['#btn-ads-part-copy-all', '#btn-ads-particulars-copy-all'], async ()=>{
-    const rows = collectAdsParticularsRows();
-    const lines = ['Particulars', ...rows.map(r=>escapeTsv(r['Particulars']))];
-    const ok = await copyText(lines.join('\n'));
-    autoLogEvent();
-    if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
-  });
-  addClick(['#btn-ads-part-export-csv', '#btn-ads-particulars-export-csv'], ()=>{
-    const rows = collectAdsParticularsRows();
-    const lines = ['Particulars', ...rows.map(r=>escapeCsv(r['Particulars']))];
-    saveFile(fileName('ads_particulars','csv'), lines.join('\n'), 'text/csv');
-    autoLogEvent();
-  });
-  addClick(['#btn-ads-part-export-json', '#btn-ads-particulars-export-json'], ()=>{
-    const rows = collectAdsParticularsRows();
-    saveFile(fileName('ads_particulars','json'), JSON.stringify(rows, null, 2), 'application/json');
-    autoLogEvent();
-  });
-
-  // Ads Copy — Copy (new and old IDs)
-  addClick(['#btn-ads-copy-copy-all', '#btn-ads-copyonly-copy-all'], async ()=>{
-    const rows = collectAdsCopyRows();
-    const lines = ['Ads Copy', ...rows.map(r=>escapeTsv(r['Ads Copy']))];
-    const ok = await copyText(lines.join('\n'));
-    autoLogEvent();
-    if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
-  });
-  addClick(['#btn-ads-copy-export-csv', '#btn-ads-copyonly-export-csv'], ()=>{
-    const rows = collectAdsCopyRows();
-    const lines = ['Ads Copy', ...rows.map(r=>escapeCsv(r['Ads Copy']))];
-    saveFile(fileName('ads_copy','csv'), lines.join('\n'), 'text/csv');
-    autoLogEvent();
-  });
-  addClick(['#btn-ads-copy-export-json', '#btn-ads-copyonly-export-json'], ()=>{
-    const rows = collectAdsCopyRows();
-    saveFile(fileName('ads_copy','json'), JSON.stringify(rows, null, 2), 'application/json');
-    autoLogEvent();
+    saveFile(fileName('outputs_search','csv'), lines.join('\n'), 'text/csv'); autoLogEvent();
   });
 
   function collectExportRows(){
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = getSearchRows(state.templates.types[typeName]);
-    const visible = filterSearchRowsByVars(rows, vars);
-    return visible.map(r=>{
-      const campaign = evaluateWithTransforms(r.campaign, vars, {
-        namedTransform:  varLowerUnderscore,
-        legacyTransform: varLowerUnderscore
-      });
-      const adset = evaluateWithTransforms(r.adset, vars, {
-        namedTransform:  varLowerUnderscore,
-        legacyTransform: varLowerUnderscore
-      });
-      const keywords = evaluateWithTransforms(r.keywords, vars, {
-        namedTransform:  varLowerSpaces,
-        legacyTransform: varLowerSpaces
-      });
+    return rows.map(r=>{
+      const campaign = evaluateWithTransforms(r.campaign, vars, { namedTransform:varLowerUnderscore, legacyTransform:varLowerUnderscore });
+      const adset    = evaluateWithTransforms(r.adset,    vars, { namedTransform:varLowerUnderscore, legacyTransform:varLowerUnderscore });
+      const keywords = evaluateWithTransforms(r.keywords, vars, { namedTransform:varLowerSpaces,     legacyTransform:varLowerSpaces     });
       return { campaign, adset, keywords };
     });
   }
 
-  function collectAdsParticularsRows(){
+  // ===== Export/Copy: Ads (Heading / Description) =====
+  function collectAdsRowsBySection(section){
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName];
     const allRows = getAdsRows(def);
     const vars = collectVars();
-    const rows = filterAdsRowsByVars(allRows, vars);
-    return rows.map(r=>({ "Particulars": (r.particular ?? r.particulars ?? '').trim() }));
-  }
-
-  function collectAdsCopyRows(){
-    const typeName = qs('#in-type').value;
-    const def = state.templates.types[typeName];
-    const allRows = getAdsRows(def);
-    const vars = collectVars();
-    const rows = filterAdsRowsByVars(allRows, vars);
+    const rows = filterAdsRowsByVars(allRows, vars).filter(r => adSectionOf(r) === section);
     return rows.map(r=>{
+      const particulars = (r.particular ?? r.particulars ?? '').trim();
       let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
-      let copy = evaluateWithTransforms(expanded, vars, {
-        namedTransform:  varTitleCase,
-        legacyTransform: varTitleCase
-      });
+      let copy = evaluateWithTransforms(expanded, vars, { namedTransform:varTitleCase, legacyTransform:varTitleCase });
       copy = normalizeSlashTight(copy).trim();
-      return { "Ads Copy": copy };
+      return { "Particulars": particulars, "Ads Copy": copy };
     });
   }
 
-  // ===== Logs (admin-guarded) =====
+  qs('#btn-ads-head-copy-all')?.addEventListener('click', async ()=>{
+    const rows = collectAdsRowsBySection('heading');
+    const header = ['Particulars','Ads Copy'];
+    const lines = [header.join('\t')];
+    rows.forEach(r=>lines.push([escapeTsv(r['Particulars']), escapeTsv(r['Ads Copy'])].join('\t')));
+    const ok = await copyText(lines.join('\n')); autoLogEvent();
+    if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
+  });
+  qs('#btn-ads-head-export-csv')?.addEventListener('click', ()=>{
+    const rows = collectAdsRowsBySection('heading');
+    const header = ['Particulars','Ads Copy'];
+    const lines = [header.map(escapeCsv).join(',')];
+    rows.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
+    saveFile(fileName('ads_headings','csv'), lines.join('\n'), 'text/csv'); autoLogEvent();
+  });
+  qs('#btn-ads-head-export-json')?.addEventListener('click', ()=>{
+    const rows = collectAdsRowsBySection('heading');
+    saveFile(fileName('ads_headings','json'), JSON.stringify(rows, null, 2), 'application/json'); autoLogEvent();
+  });
+
+  qs('#btn-ads-desc-copy-all')?.addEventListener('click', async ()=>{
+    const rows = collectAdsRowsBySection('description');
+    const header = ['Particulars','Ads Copy'];
+    const lines = [header.join('\t')];
+    rows.forEach(r=>lines.push([escapeTsv(r['Particulars']), escapeTsv(r['Ads Copy'])].join('\t')));
+    const ok = await copyText(lines.join('\n')); autoLogEvent();
+    if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
+  });
+  qs('#btn-ads-desc-export-csv')?.addEventListener('click', ()=>{
+    const rows = collectAdsRowsBySection('description');
+    const header = ['Particulars','Ads Copy'];
+    const lines = [header.map(escapeCsv).join(',')];
+    rows.forEach(r=>lines.push(header.map(h=>escapeCsv(r[h])).join(',')));
+    saveFile(fileName('ads_descriptions','csv'), lines.join('\n'), 'text/csv'); autoLogEvent();
+  });
+  qs('#btn-ads-desc-export-json')?.addEventListener('click', ()=>{
+    const rows = collectAdsRowsBySection('description');
+    saveFile(fileName('ads_descriptions','json'), JSON.stringify(rows, null, 2), 'application/json'); autoLogEvent();
+  });
+
+  // ===== Logs (admin) =====
   qs('#btn-save-log')?.addEventListener('click',()=>{ saveLog('manual'); alert('Saved to logs.'); });
-  const toggleAuto = qs('#toggle-autolog');
-  if (toggleAuto) toggleAuto.addEventListener('change', e => state.autoLog = e.target.checked);
   qs('#log-search')?.addEventListener('input', renderLogs);
   qs('#log-type-filter')?.addEventListener('change', renderLogs);
-
   qs('#btn-export-logs-csv')?.addEventListener('click', () => {
     if(!state.adminAuthed){ alert('Admin auth required.'); return; }
     const logs = getLogs();
@@ -831,37 +669,30 @@
   }
   function autoLogEvent(){ if(!state.autoLog) return; saveLog('action'); }
 
-  // === Keyboard shortcuts (3 total) — with a backup combo for Ads Copy — Copy ===
+  // Shortcuts
   function bindShortcuts(){
     document.addEventListener('keydown', (e)=>{
       const tag=(e.target?.tagName||'').toLowerCase();
       if(tag==='input'||tag==='textarea'||e.target?.isContentEditable) return;
 
-      // Ads Set CSV
+      // Search CSV
       if(e.ctrlKey && !e.shiftKey && !e.altKey && e.code==='KeyE'){
         e.preventDefault(); qs('#btn-export-csv')?.click(); return;
       }
-      // Ads Copy — Particulars CSV
+      // Ads Copy — Headings CSV
       if(e.ctrlKey && e.shiftKey && !e.altKey && e.code==='KeyE'){
-        e.preventDefault();
-        (oneOf('#btn-ads-part-export-csv', '#btn-ads-particulars-export-csv'))?.click();
-        return;
+        e.preventDefault(); qs('#btn-ads-head-export-csv')?.click(); return;
       }
-      // Ads Copy — Copy CSV (two combos to be safe)
-      if( (e.ctrlKey && e.altKey && e.code==='KeyE') || (e.ctrlKey && e.shiftKey && e.code==='KeyC') ){
-        e.preventDefault();
-        (oneOf('#btn-ads-copy-export-csv', '#btn-ads-copyonly-export-csv'))?.click();
-        return;
+      // Ads Copy — Descriptions CSV
+      if(e.ctrlKey && e.altKey && e.code==='KeyE'){
+        e.preventDefault(); qs('#btn-ads-desc-export-csv')?.click(); return;
       }
-
-      // Manual save logs (unchanged)
+      // Manual save logs
       if(e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); saveLog('manual'); }
     });
   }
 
-  /* =========================
-     Templates panel helpers
-     ========================= */
+  // ===== Templates panel =====
   const SHIPPED_DEFAULTS = (typeof window.KG_DEFAULT_TEMPLATES === 'object'
     && window.KG_DEFAULT_TEMPLATES && window.KG_DEFAULT_TEMPLATES.types)
     ? window.KG_DEFAULT_TEMPLATES
@@ -870,11 +701,9 @@
   const __init_orig = init;
   init = function(){
     __init_orig();
-
     buildLogTypeFilter();
     setupTemplatesPanel();
     refreshTemplatesPreview();
-
     const tabs = qs('#tabs');
     if (tabs && !tabs.__kg_templates_listener) {
       tabs.addEventListener('click', (e)=>{
@@ -918,102 +747,49 @@
 
   function setupTemplatesPanel(){
     const fileInput = qs('#tpl-file');
-    if (fileInput && !fileInput.__kg_bound) {
-      fileInput.addEventListener('change', async (e)=>{
-        if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok){ e.target.value=''; return; } }
-        const f = e.target.files?.[0]; if(!f) return;
-        const text = await f.text();
-        try { const obj = JSON.parse(text); setTemplates(obj); }
-        catch { alert('Bad JSON'); }
-        e.target.value = '';
-      });
-      fileInput.__kg_bound = true;
-    }
+    fileInput?.addEventListener('change', async (e)=>{
+      if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok){ e.target.value=''; return; } }
+      const f = e.target.files?.[0]; if(!f) return;
+      const text = await f.text();
+      try { const obj = JSON.parse(text); setTemplates(obj); }
+      catch { alert('Bad JSON'); }
+      e.target.value = '';
+    });
 
     const exportBtn = qs('#tpl-export-json');
-    if (exportBtn && !exportBtn.__kg_bound) {
-      exportBtn.addEventListener('click', async ()=>{
-        if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
-        saveFile(`templates_${new Date().toISOString().replace(/[:.]/g,'-')}.json`,
-          JSON.stringify(state.templates, null, 2), 'application/json');
-      });
-      exportBtn.__kg_bound = true;
-    }
+    exportBtn?.addEventListener('click', async ()=>{
+      if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
+      saveFile(`templates_${new Date().toISOString().replace(/[:.]/g,'-')}.json`,
+        JSON.stringify(state.templates, null, 2), 'application/json');
+    });
 
     const resetBtn = qs('#tpl-reset');
-    if (resetBtn && !resetBtn.__kg_bound) {
-      resetBtn.addEventListener('click', async ()=>{
-        if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
-        if(!SHIPPED_DEFAULTS){ alert('No shipped defaults found.'); return; }
-        if(!confirm('Reset templates to shipped defaults?')) return;
-        setTemplates(JSON.parse(JSON.stringify(SHIPPED_DEFAULTS)));
-      });
-      resetBtn.__kg_bound = true;
-    }
-
-    const addT2Btn = qs('#tpl-add-type2');
-    if (addT2Btn && !addT2Btn.__kg_bound) {
-      addT2Btn.addEventListener('click', async ()=>{
-        if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
-        if(!SHIPPED_DEFAULTS || !SHIPPED_DEFAULTS.types || !SHIPPED_DEFAULTS.types['Type 2']){
-          alert('Type 2 not found in shipped defaults.'); return;
-        }
-        const next = JSON.parse(JSON.stringify(state.templates || {types:{}}));
-        next.types['Type 2'] = SHIPPED_DEFAULTS.types['Type 2'];
-        setTemplates(next);
-      });
-      addT2Btn.__kg_bound = true;
-    }
+    resetBtn?.addEventListener('click', async ()=>{
+      if(!state.adminAuthed){ const ok = await ensureAdmin(); if(!ok) return; }
+      if(!SHIPPED_DEFAULTS){ alert('No shipped defaults found.'); return; }
+      if(!confirm('Reset templates to shipped defaults?')) return;
+      setTemplates(JSON.parse(JSON.stringify(SHIPPED_DEFAULTS)));
+    });
   }
 
   // ===== Collect variables from inputs =====
   function collectVars(){
     const v = {};
     qsa('input[id^="in-keyword"]').forEach(inp=>{
-      const n = inp.id.match(/in-keyword(\d+)/)[1];
-      v['keyword'+n] = inp.value.trim();
+      const n = inp.id.match(/in-keyword(\d+)/)?.[1];
+      if (n) v['keyword'+n] = inp.value.trim();
     });
     const typeName = qs('#in-type').value;
     if (typeHasVariables(typeName)) {
       const vars = state.templates.types[typeName].variables;
       vars.forEach(label => {
-        const clean = label.replace(/^\{|\}$/g,'');  // keep case as-is
-        const id = '#in-var-' + slugify(clean).replace(/[^a-z0-9-]/g,'-');
+        const clean = label.replace(/^\{|\}$/g,'');
+        const id = '#in-var-' + slugifySafe(clean);
         const el = qs(id);
         v[clean] = (el?.value ?? '').trim();
       });
     }
     return v;
-  }
-
-  // ===== Hide any legacy combined Ads Copy card (very tolerant) =====
-  function hideLegacyCombinedAdsCopyCard(){
-    try {
-      const cards = qsa('#tab-generate .card');
-      cards.forEach(card=>{
-        const thead = card.querySelector('table thead');
-        if (!thead) return;
-        const thTexts = Array.from(thead.querySelectorAll('th')).map(th=>(th.textContent||'').toLowerCase().trim());
-        const hasParticulars = thTexts.some(t => t.includes('particular'));
-        const hasAdsCopy     = thTexts.some(t => t.includes('ads copy') || t === 'copy' || t.includes('ad copy'));
-        const isCombined = hasParticulars && hasAdsCopy && thTexts.length >= 2;
-
-        const h3 = (card.querySelector('h3')?.textContent || '').toLowerCase().trim();
-        const looksNamedCombined = h3 === 'ads copy';
-
-        if (isCombined || looksNamedCombined) {
-          card.style.display = 'none';
-          card.setAttribute('aria-hidden','true');
-        }
-      });
-    } catch {}
-  }
-  function observeForLegacyAdsCopy(){
-    const host = qs('#tab-generate');
-    if(!host || host.__legacyObs) return;
-    const obs = new MutationObserver(()=>hideLegacyCombinedAdsCopyCard());
-    obs.observe(host, {childList:true, subtree:true});
-    host.__legacyObs = obs;
   }
 
 })();

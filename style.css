@@ -16,7 +16,7 @@
   --text:#e7e8ea;
   --muted:#9aa1ac;
   --border:#2a2f39;
-  --primary:#3b82f6;   /* unified primary */
+  --primary:#3b82f6;
   --danger:#d25c5c;
   --success:#6fb27a;
   --accent:#b7cc4a;
@@ -35,8 +35,6 @@
 
   --surface-2:rgba(255,255,255,.08);
 }
-
-/* Light theme override (your JS adds .light by default) */
 :root.light{
   --bg:#f7f7f9;
   --panel:#ffffff;
@@ -55,24 +53,12 @@
   --surface-2:rgba(0,0,0,.06);
 }
 
-/* Fallback: if no theme class was set by JS, align with OS preference */
+/* Fallback to OS preference if JS didn't set theme */
 @media (prefers-color-scheme: light){
   :root:not(.light){
-    --bg:#f7f7f9;
-    --panel:#ffffff;
-    --text:#1a1d24;
-    --muted:#5d6672;
-    --border:#e6e8ef;
-    --primary:#2b6cb0;
-    --danger:#b83232;
-    --success:#2f855a;
-    --accent:#70912a;
-
-    --gate-bg:#f7f7f9;
-    --gate-card-bg:#ffffff;
-    --gate-text:#0b0c10;
-
-    --surface-2:rgba(0,0,0,.06);
+    --bg:#f7f7f9; --panel:#ffffff; --text:#1a1d24; --muted:#5d6672; --border:#e6e8ef;
+    --primary:#2b6cb0; --danger:#b83232; --success:#2f855a; --accent:#70912a;
+    --gate-bg:#f7f7f9; --gate-card-bg:#ffffff; --gate-text:#0b0c10; --surface-2:rgba(0,0,0,.06);
   }
 }
 
@@ -82,12 +68,9 @@
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
+  margin:0; background:var(--bg); color:var(--text);
   font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
 }
 img{max-width:100%;height:auto}
 .hidden{display:none}
@@ -95,16 +78,13 @@ img{max-width:100%;height:auto}
   position:absolute !important; width:1px; height:1px; margin:-1px; padding:0; border:0;
   clip:rect(0 0 0 0); overflow:hidden
 }
-
-/* Reduce motion */
 @media (prefers-reduced-motion: reduce){
   *{animation:none!important; transition:none!important}
 }
 
-/* Keep hidden tabs from leaving gaps (moved from inline <style>) */
+/* Keep hidden tabs from leaving gaps */
 .tabs .tab[hidden]{ display:none !important; }
-
-/* Preserve template label casing in the Inputs form (from inline <style>) */
+/* Preserve template label casing in Inputs form */
 #gen-form label{ text-transform:none !important; letter-spacing:normal; }
 
 /* ------------------------------
@@ -153,15 +133,10 @@ kbd{background:rgba(127,127,127,.2); padding:0 6px; border-radius:6px}
    ------------------------------ */
 .grid.two{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-4)}
 .grid.three{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-4)}
+@media (max-width:1080px){ .grid.three{grid-template-columns:1fr 1fr} }
+@media (max-width:880px){ .grid.two,.grid.three{grid-template-columns:1fr} }
 
-@media (max-width:1080px){
-  .grid.three{grid-template-columns:1fr 1fr}
-}
-@media (max-width:880px){
-  .grid.two,.grid.three{grid-template-columns:1fr}
-}
-
-/* Generate tab grid (from inline <style>) */
+/* Generate tab grid */
 #tab-generate .grid.two{
   display:grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -215,8 +190,7 @@ input:focus, select:focus, textarea:focus, .btn:focus{outline:none; box-shadow:v
   .btn{padding:12px 14px}
   input[type="text"],input[type="password"],select,textarea{padding:14px}
 }
-
-/* Support very narrow screens */
+/* Very narrow screens */
 @media (max-width:400px){
   .tabs{gap:6px; padding:6px 8px}
   .tab{padding:6px 8px}
@@ -229,22 +203,11 @@ input:focus, select:focus, textarea:focus, .btn:focus{outline:none; box-shadow:v
   width:100%; overflow:auto; border:1px solid var(--border);
   border-radius:var(--radius-md); -webkit-overflow-scrolling:touch; position:relative;
 }
-/* Safe horizontal scroll for tables on phones (from inline <style>) */
-.table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-
-.table{
-  width:100%; border-collapse:separate; border-spacing:0; min-width:720px;
-}
-.table th, .table td{
-  padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:top;
-}
+.table{ width:100%; border-collapse:separate; border-spacing:0; min-width:720px; }
+.table th, .table td{ padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
 .table.small th, .table.small td{padding:8px 10px}
 .table td code{white-space:nowrap}
-
-/* Sticky table header for big lists */
-.table thead th{
-  position:sticky; top:0; z-index:2; background:var(--panel);
-}
+.table thead th{ position:sticky; top:0; z-index:2; background:var(--panel); }
 
 /* Copyable cells */
 .copyable{cursor:copy; position:relative; user-select:none; -webkit-user-select:none}
@@ -260,28 +223,22 @@ input:focus, select:focus, textarea:focus, .btn:focus{outline:none; box-shadow:v
    ------------------------------ */
 .gate{
   position:fixed; inset:0; display:grid; place-items:center;
-  /* Solid backdrop (no translucency) */
   background:var(--gate-bg) !important;
   padding:20px; z-index:1000;
 }
 .gate.hidden{display:none}
 .gate-card{
   width:100%; max-width:420px; padding:20px; border-radius:14px;
-  background:var(--gate-card-bg) !important;
-  color:var(--gate-text);
+  background:var(--gate-card-bg) !important; color:var(--gate-text);
   border:0; box-shadow:0 12px 40px rgba(0,0,0,.25);
 }
 .error{color:var(--danger)}
-
-/* Gate controls */
 #gate input[type="password"], #gate input[type="text"]{
   color:var(--gate-text);
   background: color-mix(in srgb, var(--gate-card-bg) 92%, transparent);
   border: 1px solid color-mix(in srgb, var(--gate-text) 18%, transparent);
 }
 #gate input::placeholder{ color: color-mix(in srgb, var(--gate-text) 55%, transparent); }
-
-/* Segmented role pills */
 #gate fieldset.segmented{ display:flex; gap:.5rem; border:0; background:transparent; box-shadow:none; padding:0; margin:6px 0 10px; }
 #gate fieldset.segmented label{
   position:relative; display:inline-flex; align-items:center; border-radius:999px; cursor:pointer; user-select:none;
@@ -293,8 +250,6 @@ input:focus, select:focus, textarea:focus, .btn:focus{outline:none; box-shadow:v
 #gate fieldset.segmented input[type="radio"]:checked + span{
   background:var(--primary); color:#fff; border-color:var(--primary);
 }
-
-/* Primary button */
 #gate .gate-actions .btn.primary{
   width:100%; height:44px; border:0; border-radius:10px;
   background:var(--primary); color:#fff; font-weight:600; font-size:16px;
@@ -308,13 +263,15 @@ input:focus, select:focus, textarea:focus, .btn:focus{outline:none; box-shadow:v
 /* ------------------------------
    Legacy/guard compat
    ------------------------------ */
-/* Hide any older combined "Ads Copy" block injected by guard scripts */
+/* Hide any older single "Ads Copy" block injected by very old guard */
 #ads-copy-block{ display:none !important; }
 
-/* Hide JSON export buttons where you want only CSV */
+/* Hide JSON export buttons in UI (available via code if you unhide) */
 #btn-ads-export-json,
 #btn-ads-part-export-json,
-#btn-ads-copy-export-json{ display:none; }
+#btn-ads-copy-export-json,
+#btn-ads-head-export-json,
+#btn-ads-desc-export-json{ display:none; }
 
 /* ------------------------------
    Notes bar (optional)
