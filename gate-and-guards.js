@@ -50,9 +50,28 @@
     passEl?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); $('#gate-enter')?.click(); }});
     (function restore(){ const r=sessionStorage.getItem('kg_role'); if(r===ROLE_PUBLIC||r===ROLE_ADMIN){ gateEl.style.display='none'; gateEl.setAttribute('aria-hidden','true'); applyRoleView(r); } })();
 
-    // --- Ads Copy block creator (mirrors your earlier pattern) ---
+    // === helpers used below (non-breaking) ===
+    const oneOf = (...sels)=>sels.map(s=>$(s)).find(Boolean) || null;
+    const manyOf = (...sels)=>sels.flatMap(s=>Array.from(document.querySelectorAll(s)));
+
+    // --- Ads Copy block creator (legacy) ---
+    // UPDATED: Prefer split tables (Ads Copy — Particulars & Ads Copy — Copy).
+    // Only create the legacy combined block if split tables DO NOT exist.
     function ensureAdsCopyBlock(){
       const card = $('#preview-table')?.closest('.card') || null; if(!card) return;
+
+      // If the new split tables exist, DO NOT create the legacy block.
+      const hasSplit =
+        $('#ads-particulars-table') || $('#ads-copyonly-table') ||
+        $('#card-ads-particulars') || $('#card-ads-copyonly');
+      if (hasSplit) {
+        // If an old legacy block slipped in, hide it.
+        const legacy = $('#ads-copy-block');
+        if (legacy) { legacy.style.display='none'; legacy.setAttribute('aria-hidden','true'); }
+        return;
+      }
+
+      // Otherwise (pure fallback) keep the original legacy creator:
       if($('#ads-copy-block')) return;
       const wrap = document.createElement('div');
       wrap.id = 'ads-copy-block';
@@ -75,7 +94,7 @@
       `;
       ( $('#ads-copy-anchor') || card ).appendChild(wrap);
 
-      // Wire toolbar (these helpers are expected in app.js; fallbacks included)
+      // Wire toolbar (fallback; main app.js handles split tables)
       const escapeTsv = window.escapeTsv || (v=>String(v??'').replace(/\t/g,'    ').replace(/\r?\n/g,' '));
       const escapeCsv = window.escapeCsv || (v=>{
         v = String(v??'');
@@ -92,9 +111,7 @@
       const autoLogEvent = window.autoLogEvent || (function(){});
 
       function collectAdsExportRows(){
-        // If app.js defines a richer collector, use it:
         if(typeof window.collectAdsExportRows === 'function') return window.collectAdsExportRows();
-        // Fallback: read from #ads-table
         const rows = [];
         $$('#ads-table tbody tr').forEach(tr=>{
           const tds = tr.querySelectorAll('td');
@@ -128,9 +145,9 @@
         autoLogEvent();
       });
 
-      // Ads shortcut: Export only (you asked to remove Copy All shortcut)
-      if(!window.__adsShortcutBound){
-        window.__adsShortcutBound = true;
+      // Legacy block local shortcut (kept for fallback)
+      if(!window.__legacyAdsShortcutBound){
+        window.__legacyAdsShortcutBound = true;
         document.addEventListener('keydown', (e)=>{
           const tag=(e.target?.tagName||'').toLowerCase();
           if(tag==='input'||tag==='textarea'||e.target?.isContentEditable) return;
@@ -145,13 +162,31 @@
     const obs = new MutationObserver(()=>{ if($('#preview-table')) ensureAdsCopyBlock(); });
     obs.observe(document.body, {childList:true, subtree:true});
 
-    // --- Global shortcuts: Ads Set CSV (Ctrl+E) ---
-    if(!window.__adsSetShortcutBound){
-      window.__adsSetShortcutBound = true;
+    // --- Global shortcuts (UPDATED to target split tables) ---
+    if(!window.__globalShortcutsBound){
+      window.__globalShortcutsBound = true;
       document.addEventListener('keydown', (e)=>{
         const tag=(e.target?.tagName||'').toLowerCase();
         if(tag==='input'||tag==='textarea'||e.target?.isContentEditable) return;
-        if(e.ctrlKey && !e.shiftKey && e.code==='KeyE'){ e.preventDefault(); $('#btn-export-csv')?.click(); }
+
+        // 1) Ads Set CSV
+        if(e.ctrlKey && !e.shiftKey && !e.altKey && e.code==='KeyE'){
+          e.preventDefault(); $('#btn-export-csv')?.click(); return;
+        }
+
+        // 2) Ads Copy — Particulars CSV
+        if(e.ctrlKey && e.shiftKey && !e.altKey && e.code==='KeyE'){
+          e.preventDefault();
+          ( oneOf('#btn-ads-particulars-export-csv', '#btn-ads-part-export-csv') )?.click();
+          return;
+        }
+
+        // 3) Ads Copy — Copy CSV  (primary + backup combo)
+        if( (e.ctrlKey && e.altKey && e.code==='KeyE') || (e.ctrlKey && e.shiftKey && e.code==='KeyC') ){
+          e.preventDefault();
+          ( oneOf('#btn-ads-copyonly-export-csv', '#btn-ads-copy-export-csv') )?.click();
+          return;
+        }
       }, {passive:true});
     }
 
@@ -160,22 +195,20 @@
     document.addEventListener('contextmenu', e=>{ e.preventDefault(); }, {capture:true});
     document.addEventListener('keydown', (e)=>{
       const k = e.key?.toLowerCase();
-      const combo = (mods)=>mods.every(m=>e[m]);
       // Block: Ctrl+S / Ctrl+P / Ctrl+U
       if( (e.ctrlKey && (k==='s' || k==='p' || k==='u')) ) { e.preventDefault(); e.stopPropagation(); }
       // Block: F12, Ctrl+Shift+I/J/C
       if( k==='f12' || (e.ctrlKey && e.shiftKey && ['i','j','c'].includes(k)) ){ e.preventDefault(); e.stopPropagation(); }
       // Block: Ctrl+Shift+S (save as)
       if( e.ctrlKey && e.shiftKey && k==='s'){ e.preventDefault(); e.stopPropagation(); }
-      // Block: Ctrl+O (open), Ctrl+S handled above
+      // Block: Ctrl+O (open)
       if( e.ctrlKey && k==='o'){ e.preventDefault(); e.stopPropagation(); }
-      // Print screen prevention is not possible reliably.
     }, {capture:true});
 
     document.addEventListener('dragstart', e=>e.preventDefault(), {capture:true});
     document.addEventListener('copy', e=>{ /* allow normal copy for tool use; disable if you prefer */ }, {capture:true});
 
-    /* 
+    /*
       ⚙ Server-side hardening (recommended):
       - Disable directory listing (Apache .htaccess):
           Options -Indexes
@@ -187,4 +220,4 @@
           Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
       - Ensure the site is served over HTTPS.
     */
-  })();
+})();

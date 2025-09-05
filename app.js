@@ -84,6 +84,16 @@
   const fmtDate = ts => new Date(ts).toLocaleString();
   const escapeTsv = v => String(v??'').replace(/\t/g,' ').replace(/\r?\n/g,' ');
 
+  // === helpers (don’t break existing code) ===
+  const oneOf = (...sels) => sels.map(s=>qs(s)).find(Boolean) || null;
+  const manyOf = (...sels) => sels.flatMap(s => Array.from(document.querySelectorAll(s)));
+  const addClick = (selectors, handler) => {
+    selectors.forEach(sel => {
+      const el = qs(sel);
+      if (el && !el.__kg_bound) { el.addEventListener('click', handler); el.__kg_bound = true; }
+    });
+  };
+
   // File helpers
   const fileName = (base,ext)=>`${base}_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
   const saveFile = (name, content, type='text/plain') => {
@@ -235,6 +245,10 @@
     bindShortcuts();
     renderPreview();
     renderAdsTables();        // NEW: fill both Ads tables
+
+    // Hide legacy combined Ads Copy card now + whenever DOM changes
+    hideLegacyCombinedAdsCopyCard();
+    observeForLegacyAdsCopy();
   }
 
   // ===== Dynamic sample helpers =====
@@ -561,9 +575,12 @@
     renderAdsCopyOnly();
   }
 
+  // render Ads Copy — Particulars to either old or new table IDs
   function renderAdsParticulars(){
-    const tbody = qs('#ads-part-table tbody'); if(!tbody) return;
-    tbody.innerHTML='';
+    const tbodies = manyOf('#ads-part-table tbody', '#ads-particulars-table tbody');
+    if(tbodies.length===0) return;
+    tbodies.forEach(t=>t.innerHTML='');
+
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName]; if(!def) return;
 
@@ -571,21 +588,26 @@
     const vars = collectVars();
     const rows = filterAdsRowsByVars(allRows, vars);
 
-    rows.forEach(r=>{
-      const tr = document.createElement('tr');
-      const td = document.createElement('td');
-      td.className = 'copyable';
-      const txt = (r.particular ?? r.particulars ?? '').trim();
-      td.dataset.copy = txt;
-      td.textContent = txt;
-      tr.appendChild(td);
-      tbody.appendChild(tr);
+    tbodies.forEach(tbody=>{
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.className = 'copyable';
+        const txt = (r.particular ?? r.particulars ?? '').trim();
+        td.dataset.copy = txt;
+        td.textContent = txt;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      });
     });
   }
 
+  // render Ads Copy — Copy to either old or new table IDs
   function renderAdsCopyOnly(){
-    const tbody = qs('#ads-copy-table tbody'); if(!tbody) return;
-    tbody.innerHTML='';
+    const tbodies = manyOf('#ads-copy-table tbody', '#ads-copyonly-table tbody');
+    if(tbodies.length===0) return;
+    tbodies.forEach(t=>t.innerHTML='');
+
     const typeName = qs('#in-type').value;
     const def = state.templates.types[typeName]; if(!def) return;
 
@@ -593,20 +615,22 @@
     const vars = collectVars();
     const rows = filterAdsRowsByVars(allRows, vars);
 
-    rows.forEach(r=>{
-      const tr = document.createElement('tr');
-      const td = document.createElement('td');
-      let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
-      let out = evaluateWithTransforms(expanded, vars, {
-        namedTransform:  varTitleCase,
-        legacyTransform: varTitleCase
+    tbodies.forEach(tbody=>{
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        let expanded = expandInlineJoins(r.copy || '', vars, varTitleCase);
+        let out = evaluateWithTransforms(expanded, vars, {
+          namedTransform:  varTitleCase,
+          legacyTransform: varTitleCase
+        });
+        out = normalizeSlashTight(out).trim();
+        td.className = 'copyable';
+        td.dataset.copy = out;
+        td.textContent = out;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
       });
-      out = normalizeSlashTight(out).trim();
-      td.className = 'copyable';
-      td.dataset.copy = out;
-      td.textContent = out;
-      tr.appendChild(td);
-      tbody.appendChild(tr);
     });
   }
 
@@ -645,33 +669,43 @@
     autoLogEvent();
   });
 
-  // Ads Copy — Particulars
-  qs('#btn-ads-part-copy-all')?.addEventListener('click', async ()=>{
+  // Ads Copy — Particulars (new and old IDs)
+  addClick(['#btn-ads-part-copy-all', '#btn-ads-particulars-copy-all'], async ()=>{
     const rows = collectAdsParticularsRows();
     const lines = ['Particulars', ...rows.map(r=>escapeTsv(r['Particulars']))];
     const ok = await copyText(lines.join('\n'));
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   });
-  qs('#btn-ads-part-export-csv')?.addEventListener('click', ()=>{
+  addClick(['#btn-ads-part-export-csv', '#btn-ads-particulars-export-csv'], ()=>{
     const rows = collectAdsParticularsRows();
     const lines = ['Particulars', ...rows.map(r=>escapeCsv(r['Particulars']))];
     saveFile(fileName('ads_particulars','csv'), lines.join('\n'), 'text/csv');
     autoLogEvent();
   });
+  addClick(['#btn-ads-part-export-json', '#btn-ads-particulars-export-json'], ()=>{
+    const rows = collectAdsParticularsRows();
+    saveFile(fileName('ads_particulars','json'), JSON.stringify(rows, null, 2), 'application/json');
+    autoLogEvent();
+  });
 
-  // Ads Copy — Copy
-  qs('#btn-ads-copy-copy-all')?.addEventListener('click', async ()=>{
+  // Ads Copy — Copy (new and old IDs)
+  addClick(['#btn-ads-copy-copy-all', '#btn-ads-copyonly-copy-all'], async ()=>{
     const rows = collectAdsCopyRows();
     const lines = ['Ads Copy', ...rows.map(r=>escapeTsv(r['Ads Copy']))];
     const ok = await copyText(lines.join('\n'));
     autoLogEvent();
     if(!ok) alert('Copied (fallback). If this fails, try HTTPS or a different browser.');
   });
-  qs('#btn-ads-copy-export-csv')?.addEventListener('click', ()=>{
+  addClick(['#btn-ads-copy-export-csv', '#btn-ads-copyonly-export-csv'], ()=>{
     const rows = collectAdsCopyRows();
     const lines = ['Ads Copy', ...rows.map(r=>escapeCsv(r['Ads Copy']))];
     saveFile(fileName('ads_copy','csv'), lines.join('\n'), 'text/csv');
+    autoLogEvent();
+  });
+  addClick(['#btn-ads-copy-export-json', '#btn-ads-copyonly-export-json'], ()=>{
+    const rows = collectAdsCopyRows();
+    saveFile(fileName('ads_copy','json'), JSON.stringify(rows, null, 2), 'application/json');
     autoLogEvent();
   });
 
@@ -797,7 +831,7 @@
   }
   function autoLogEvent(){ if(!state.autoLog) return; saveLog('action'); }
 
-  // === Keyboard shortcuts (3 total)
+  // === Keyboard shortcuts (3 total) — with a backup combo for Ads Copy — Copy ===
   function bindShortcuts(){
     document.addEventListener('keydown', (e)=>{
       const tag=(e.target?.tagName||'').toLowerCase();
@@ -809,11 +843,15 @@
       }
       // Ads Copy — Particulars CSV
       if(e.ctrlKey && e.shiftKey && !e.altKey && e.code==='KeyE'){
-        e.preventDefault(); qs('#btn-ads-part-export-csv')?.click(); return;
+        e.preventDefault();
+        (oneOf('#btn-ads-part-export-csv', '#btn-ads-particulars-export-csv'))?.click();
+        return;
       }
-      // Ads Copy — Copy CSV
-      if(e.ctrlKey && e.altKey && e.code==='KeyE'){
-        e.preventDefault(); qs('#btn-ads-copy-export-csv')?.click(); return;
+      // Ads Copy — Copy CSV (two combos to be safe)
+      if( (e.ctrlKey && e.altKey && e.code==='KeyE') || (e.ctrlKey && e.shiftKey && e.code==='KeyC') ){
+        e.preventDefault();
+        (oneOf('#btn-ads-copy-export-csv', '#btn-ads-copyonly-export-csv'))?.click();
+        return;
       }
 
       // Manual save logs (unchanged)
@@ -946,6 +984,36 @@
       });
     }
     return v;
+  }
+
+  // ===== Hide any legacy combined Ads Copy card (very tolerant) =====
+  function hideLegacyCombinedAdsCopyCard(){
+    try {
+      const cards = qsa('#tab-generate .card');
+      cards.forEach(card=>{
+        const thead = card.querySelector('table thead');
+        if (!thead) return;
+        const thTexts = Array.from(thead.querySelectorAll('th')).map(th=>(th.textContent||'').toLowerCase().trim());
+        const hasParticulars = thTexts.some(t => t.includes('particular'));
+        const hasAdsCopy     = thTexts.some(t => t.includes('ads copy') || t === 'copy' || t.includes('ad copy'));
+        const isCombined = hasParticulars && hasAdsCopy && thTexts.length >= 2;
+
+        const h3 = (card.querySelector('h3')?.textContent || '').toLowerCase().trim();
+        const looksNamedCombined = h3 === 'ads copy';
+
+        if (isCombined || looksNamedCombined) {
+          card.style.display = 'none';
+          card.setAttribute('aria-hidden','true');
+        }
+      });
+    } catch {}
+  }
+  function observeForLegacyAdsCopy(){
+    const host = qs('#tab-generate');
+    if(!host || host.__legacyObs) return;
+    const obs = new MutationObserver(()=>hideLegacyCombinedAdsCopyCard());
+    obs.observe(host, {childList:true, subtree:true});
+    host.__legacyObs = obs;
   }
 
 })();

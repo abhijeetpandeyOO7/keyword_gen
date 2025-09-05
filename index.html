@@ -2,89 +2,94 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
   <!-- Discourage caching & indexing (best enforced via server headers too) -->
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <!-- Lightweight CSP via meta (prefer server header): blocks framing, upgrades to HTTPS -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'; upgrade-insecure-requests">
 
+  <!-- Lightweight CSP via meta (prefer sending this via server header in production) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:;
+                 style-src 'self' 'unsafe-inline';
+                 script-src 'self' 'unsafe-inline';
+                 font-src 'self' data:;
+                 frame-ancestors 'none';
+                 base-uri 'self';
+                 form-action 'self';
+                 upgrade-insecure-requests">
+
+  <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)">
-  <title>Google Ads Keyword & Ads Copy Generatort</title>
+  <title>Google Ads Keyword &amp; Ads Copy Generator</title>
 
-  <link rel="stylesheet" href="style.css" />
-  <style>
-    /* Optional tiny tweak so hidden tabs don't leave gaps */
-    .tabs .tab[hidden] { display:none !important; }
+  <script>
+    /*  Bump this value on every deploy to force browsers/CDNs to fetch fresh JS & CSS.
+        Also appended as a version query to CSS/JS URLs below. */
+    window.KG_BUILD_ID = '2025-09-05-02';
 
-    /* Preserve template label casing */
-    #gen-form label { text-transform: none !important; letter-spacing: normal; }
-
-    /* Mobile-friendly grid in Generate tab */
-    #tab-generate .grid.two {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 12px;
+    /* If a service worker was ever installed, unregister it so it can’t serve stale JS/CSS */
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations?.().then(list => list.forEach(r => r.unregister()));
     }
+  </script>
 
-    /* Safe horizontal scroll for tables on phones */
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  <!-- Cache-busted CSS -->
+  <link rel="stylesheet" href="style.css?v=2025-09-05-02" />
 
-    /* Make toolbar buttons wrap on small screens */
-    .row.wrap { flex-wrap: wrap; gap: .5rem; }
-  </style>
 </head>
 <body>
-  <!-- <div class="note-bar" role="status" aria-live="polite">
-    System is <b>case-sensitive</b>; spaces are preserved.
-  </div> -->
-
-<!-- Login Gate -->
-<div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
-  <div class="gate-card">
-    <h1 id="gate-title">Login</h1>
-    <p class="muted">Choose role and enter password</p>
-
-    <!-- Role selector -->
-    <fieldset class="segmented" role="radiogroup" aria-label="Select role">
-      <label>
-        <input type="radio" name="gate-role" id="gate-role-public" value="public" checked />
-        <span>Public</span>
-      </label>
-      <label>
-        <input type="radio" name="gate-role" id="gate-role-admin" value="admin" />
-        <span>Admin</span>
-      </label>
-    </fieldset>
-
-    <label for="gate-pass">Password</label>
-    <input
-      type="password"
-      id="gate-pass"
-      placeholder="Enter passcode"
-      inputmode="text"
-      autocomplete="current-password"
-      aria-describedby="gate-error"
-    />
-
-    <div class="gate-actions">
-      <br>
-      <button id="gate-enter" class="btn primary" type="button">Enter</button>
+  <noscript>
+    <div style="padding:12px; background:#ffefef; color:#900;">
+      This app requires JavaScript. Please enable JS and reload.
     </div>
+  </noscript>
 
-    <p id="gate-error" class="error" hidden role="alert">Incorrect password. Try again.</p>
+  <!-- Login Gate (role-aware) -->
+  <div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+    <div class="gate-card">
+      <h1 id="gate-title">Login</h1>
+      <p class="muted">Choose role and enter password</p>
+
+      <!-- Role selector -->
+      <fieldset class="segmented" role="radiogroup" aria-label="Select role">
+        <label>
+          <input type="radio" name="gate-role" id="gate-role-public" value="public" checked />
+          <span>Public</span>
+        </label>
+        <label>
+          <input type="radio" name="gate-role" id="gate-role-admin" value="admin" />
+          <span>Admin</span>
+        </label>
+      </fieldset>
+
+      <label for="gate-pass">Password</label>
+      <input
+        type="password"
+        id="gate-pass"
+        placeholder="Enter passcode"
+        inputmode="text"
+        autocomplete="current-password"
+        aria-describedby="gate-error"
+      />
+
+      <div class="gate-actions" style="margin-top:.5rem">
+        <button id="gate-enter" class="btn primary" type="button">Enter</button>
+      </div>
+
+      <p id="gate-error" class="error" hidden role="alert">Incorrect password. Try again.</p>
+    </div>
   </div>
-</div>
-
 
   <header class="app-header" role="banner">
     <div class="brand" aria-label="App brand">
       <span class="logo" aria-hidden="true">🔐</span>
-      <h2>Google Ads Keyword & Ads Copy Generator</h2>
+      <h2>Google Ads Keyword &amp; Ads Copy Generator</h2>
       <span class="dot muted">Online</span>
     </div>
     <div class="actions" role="toolbar" aria-label="Quick actions">
@@ -118,6 +123,7 @@
           <div class="grid two">
             <div>
               <label for="in-type">Type</label>
+              <!-- IMPORTANT: default value must exist in templates; "Type 1 (legacy)" is present in DEFAULT_TEMPLATES -->
               <select id="in-type" aria-label="Template Type">
                 <option value="Type 1">Type 1</option>
               </select>
@@ -133,7 +139,7 @@
           <div id="kw-box" class="grid three" aria-live="polite"></div>
         </form>
 
-        <!-- 2) Ads Set -->
+        <!-- 2) Search / Ads Set -->
         <div class="card">
           <h3>Ads Set</h3>
           <!-- Toolbar -->
@@ -141,7 +147,7 @@
             <div class="row gap wrap" aria-label="Ads Set actions">
               <button type="button" class="btn" id="btn-copy-all" title="Copy all rows to clipboard">Copy All</button>
               <button type="button" class="btn" id="btn-export-csv" title="Export CSV">Export CSV</button>
-              <!-- Hidden buttons -->
+              <!-- Hidden buttons (available via code/shortcuts) -->
               <button type="button" class="btn" id="btn-export-json" title="Export JSON" hidden>Export JSON</button>
               <button type="button" class="btn primary" id="btn-save-log" title="Save to Logs" hidden>Save Log</button>
             </div>
@@ -161,7 +167,8 @@
           </div>
 
           <p class="muted small">
-            Tip: tap/click any cell to copy it. Shortcuts (Ads Set): <kbd>Ctrl</kbd>+<kbd>E</kbd> → Export CSV
+            Tip: tap/click any cell to copy it.
+            Shortcuts (Search/Ads Set): <kbd>Ctrl</kbd>+<kbd>E</kbd> → Export CSV
           </p>
         </div>
 
@@ -217,6 +224,7 @@
           <div>
             <p class="muted small">
               Load or modify template sets. Changes are saved to <code>localStorage</code> and applied immediately.
+              On every full page refresh, shipped defaults overwrite stored templates (so you always start clean).
             </p>
             <div class="row gap wrap">
               <label class="btn file" aria-label="Import templates JSON">
@@ -225,12 +233,13 @@
               </label>
               <button class="btn" id="tpl-export-json" type="button">Export JSON</button>
               <button class="btn" id="tpl-reset" type="button">Reset to Defaults</button>
+              <!-- <button class="btn" id="tpl-add-type2" type="button">Add “Type 2” (from defaults)</button> -->
             </div>
           </div>
           <div>
             <label for="tpl-preview">Current templates (read-only preview)</label>
             <textarea id="tpl-preview" rows="18" spellcheck="false" readonly></textarea>
-            <p class="muted small">To edit manually, export → change JSON → import.</p>
+            <p class="muted small">To edit manually: export → change JSON → import.</p>
           </div>
         </div>
       </div>
@@ -249,7 +258,7 @@
             <label for="log-type-filter">Type</label>
             <select id="log-type-filter">
               <option value="">Any</option>
-              <option value="Type 1">Type 1</option>
+              <option value="Type 1 (legacy)">Type 1 (legacy)</option>
             </select>
           </div>
           <div class="row gap wrap">
@@ -276,124 +285,125 @@
       </div>
     </section>
 
+    <!-- Help -->
+    <section id="tab-help" class="panel" role="tabpanel" aria-labelledby="Help">
+      <div class="card">
+        <h3>Help &amp; Notes</h3>
 
-<!-- Help -->
-<section id="tab-help" class="panel" role="tabpanel" aria-labelledby="Help">
-  <div class="card">
-    <h3>Help & Notes</h3>
-
-    <h4>What it does</h4>
-    <ul>
-      <li>Generates a 3-column <b>Search</b> table — <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i> — for the selected <b>Type</b>.</li>
-      <li>If the Type defines Ads content, it is shown as two single-column tables in separate cards:
+        <h4>What it does</h4>
         <ul>
-          <li><b>Ads Copy — Particulars</b> (1 column: Particulars)</li>
-          <li><b>Ads Copy — Copy</b> (1 column: Ads Copy)</li>
+          <li>Generates a 3-column <b>Search</b> table — <i>Campaign Name</i>, <i>Adset Name</i>, <i>Keywords</i> — for the selected <b>Type</b>.</li>
+          <li>If the Type defines Ads content, it is shown as two single-column tables in separate cards:
+            <ul>
+              <li><b>Ads Copy — Particulars</b> (1 column: Particulars)</li>
+              <li><b>Ads Copy — Copy</b> (1 column: Ads Copy)</li>
+            </ul>
+          </li>
+          <li><b>Types can differ.</b> Each Type ships its own variables, sample placeholders, Search rows, and optional Ads rows.
+            In menus/filters you’ll see the internal ID with nickname (e.g. <code>Type 1 (Brand_Apartment)</code>).</li>
+          <li>Inputs are auto-generated from the Type’s <code>variables</code> list (e.g., <code>BUILDER + PROJECT</code>, <code>CITY</code>) or legacy <code>keywordN</code> usage.</li>
+          <li>Works offline. Templates/logs persist in <code>localStorage</code>; auth state is in <code>sessionStorage</code>.</li>
         </ul>
-      </li>
-      <li><b>Types can differ.</b> Each Type ships its own variables, sample placeholders, Search rows, and optional Ads rows. In menus and filters you’ll see the internal ID with nickname (e.g. <code>Type 1 (Brand_Appartment)</code>).</li>
-      <li>Inputs are auto-generated from the Type’s <code>variables</code> list (e.g., <code>BUILDER + PROJECT</code>, <code>CITY</code>) or legacy <code>keywordN</code> usage.</li>
-      <li>Runs fully offline. Templates/logs persist in <code>localStorage</code>; auth state is in <code>sessionStorage</code>.</li>
-    </ul>
 
-    <h4>Roles & access</h4>
-    <ul>
-      <li><b>Public</b>: access to the <b>Generate</b> tab only.</li>
-      <li><b>Admin</b>: access to <b>Generate</b>, <b>Templates</b>, <b>Logs</b>, and <b>Help</b>.</li>
-      <li>Use the login popup to choose role (Public/Admin) and enter the corresponding password.</li>
-    </ul>
-
-    <h4>Placeholders & modifiers</h4>
-    <ul>
-      <li><b>Named placeholders</b> (single braces) map 1:1 to inputs: <code>{VAR NAME}</code> like <code>{BUILDER + PROJECT}</code>, <code>{CITY}</code>, <code>{PRICE}</code>.</li>
-      <li><b>Legacy placeholders</b> (double braces) support optional modifiers:
-        <code>{{keyword1}}</code>, <code>{{keyword2.lower}}</code>, <code>{{keyword3.upper}}</code>, <code>{{keyword4.cap}}</code>, <code>{{keyword5.slug}}</code>.
-      </li>
-      <li><b>Built-ins</b> (double-brace only): <code>{{today}}</code> (YYYY-MM-DD), <code>{{ts}}</code> (Unix ms).</li>
-      <li>Missing variables resolve to empty strings. Only variable insertions are transformed; static template text is preserved exactly.</li>
-    </ul>
-
-    <h4>Inline JOIN (multi-value helpers)</h4>
-    <ul>
-      <li>Use <code>{JOIN:VAR A, VAR B, ...}</code> to render only the variables that were provided, joined by <code>/</code> with no spaces. Example:
-        <code>{JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3}</code> → <i>1/2/3</i>.</li>
-      <li>JOIN is processed <i>before</i> placeholders are transformed, then variable values are Title-Cased (in Ads) and slashes are tightened (no spaces around <code>/</code>).</li>
-      <li>Rows that contain JOIN are hidden unless at least one of the referenced variables has a value (unless <code>X: true</code> is set; see below).</li>
-    </ul>
-
-    <h4>Preview (Search) formatting</h4>
-    <ul>
-      <li><b>Only transform variables</b> (not static text) according to column:
+        <h4>Roles &amp; access</h4>
         <ul>
-          <li><b>Campaign Name</b> → variables become <code>lowercase_with_underscores</code>.</li>
-          <li><b>Adset Name</b> → variables become <code>lowercase_with_underscores</code>.</li>
-          <li><b>Keywords</b> → variables become <b>lowercase with spaces preserved</b> (no underscores).</li>
+          <li><b>Public</b>: access to the <b>Generate</b> tab only.</li>
+          <li><b>Admin</b>: access to <b>Generate</b>, <b>Templates</b>, <b>Logs</b>, and <b>Help</b>.</li>
+          <li>Use the login popup to choose role (Public/Admin) and enter the corresponding password.</li>
         </ul>
-      </li>
-      <li>Static parts from the template remain exactly as written.</li>
-      <li>Search rows are hidden if their required variables are missing (legacy behavior).</li>
-    </ul>
 
-    <h4>Ads Copy formatting & filtering</h4>
-    <ul>
-      <li><b>Only variables</b> are transformed to <b>Title Case</b>; static Ads text is preserved exactly.</li>
-      <li>Spaces around slashes are removed (e.g. <code>1 / 2 / 3 BHK</code> → <code>1/2/3 BHK</code>).</li>
-      <li>JOIN expressions render as compact slash-lists (e.g., <code>{JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3}</code> → <code>1/2/3</code>).</li>
-      <li><b>Row hiding</b>:
+        <h4>Placeholders &amp; modifiers</h4>
         <ul>
-          <li>Ads rows hide if their required variables are missing.</li>
-          <li>Ads rows with JOIN hide if none of the JOINed variables are provided.</li>
-          <li>Ads rows marked <code>X: true</code> <b>always show</b> (override), regardless of missing variables.</li>
+          <li><b>Named placeholders</b> (single braces) map 1:1 to inputs: <code>{VAR NAME}</code> like <code>{BUILDER + PROJECT}</code>, <code>{CITY}</code>, <code>{PRICE}</code>.</li>
+          <li><b>Legacy placeholders</b> (double braces) support optional modifiers:
+            <code>{{keyword1}}</code>, <code>{{keyword2.lower}}</code>, <code>{{keyword3.upper}}</code>, <code>{{keyword4.cap}}</code>, <code>{{keyword5.slug}}</code>.</li>
+          <li><b>Built-ins</b> (double-brace only): <code>{{today}}</code> (YYYY-MM-DD), <code>{{ts}}</code> (Unix ms).</li>
+          <li>Missing variables resolve to empty strings. Only variable insertions are transformed; static template text is preserved exactly.</li>
         </ul>
-      </li>
-    </ul>
 
-    <h4>Dynamic sample placeholders</h4>
-    <ul>
-      <li>Each input shows a sample value from the Type’s <code>samples</code> (or <code>sampleValues</code>).</li>
-      <li>Samples are hints only — change any input to immediately update outputs.</li>
-    </ul>
-
-    <h4>Copy & export</h4>
-    <ul>
-      <li>Click/tap any cell to copy that cell.</li>
-      <li><b>Copy All</b> (Search/Ads) copies as <b>TSV</b> so Sheets/Excel split columns automatically.</li>
-      <li><b>Exports</b>:
+        <h4>Inline JOIN (multi-value helpers)</h4>
         <ul>
-          <li><b>Search</b>: CSV (<code>outputs_search.*</code>) — JSON export is disabled in UI.</li>
-          <li><b>Ads Copy — Particulars</b>: CSV (<code>ads_particulars.*</code>) — JSON export hidden.</li>
-          <li><b>Ads Copy — Copy</b>: CSV (<code>ads_copy.*</code>) — JSON export hidden.</li>
+          <li>Use <code>{JOIN:VAR A, VAR B, ...}</code> to render only the variables that were provided, joined by <code>/</code> with no spaces.
+            Example: <code>{JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3}</code> → <i>1/2/3</i>.</li>
+          <li>JOIN is processed <i>before</i> placeholders are transformed, then variable values are Title-Cased (in Ads) and slashes are tightened (no spaces around <code>/</code>).</li>
+          <li>Rows that contain JOIN are hidden unless at least one of the referenced variables has a value (unless <code>X: true</code> is set; see below).</li>
         </ul>
-      </li>
-      <li><b>Shortcuts</b>:
+
+        <h4>Preview (Search) formatting rules</h4>
         <ul>
-          <li><kbd>Ctrl</kbd>+<kbd>E</kbd> → Export CSV (Search)</li>
-          <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> → Export CSV (Ads Copy — Particulars)</li>
-          <li><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd> → Export CSV (Ads Copy — Copy)</li>
-          <li><kbd>Ctrl</kbd>+<kbd>S</kbd> → Save log (manual)</li>
+          <li><b>Only transform variables</b> (not static text) according to column:
+            <ul>
+              <li><b>Campaign Name</b> → variables become <code>lowercase_with_underscores</code>.</li>
+              <li><b>Adset Name</b> → variables become <code>lowercase_with_underscores</code>.</li>
+              <li><b>Keywords</b> → variables become <b>lowercase with spaces preserved</b> (no underscores).</li>
+            </ul>
+          </li>
+          <li>Static parts from the template remain exactly as written.</li>
+          <li>Search rows are hidden if their required variables are missing (legacy behavior).</li>
         </ul>
-      </li>
-      <li>Filenames include an ISO timestamp.</li>
-    </ul>
 
-    <h4>Logging, security & template reset</h4>
-    <ul>
-      <li>Logging runs automatically in the background during edits and actions. (The Auto-log toggle is not shown.)</li>
-      <li><b>Idle lock</b>: auto-locks after ~30 minutes of inactivity.</li>
-      <li><b>Admin-gated</b>: <i>Templates</i> and <i>Logs</i> tabs require the admin password.</li>
-      <li><b>Always reset templates on refresh</b>: On every page load, shipped defaults overwrite stored templates. You can still import/override during the session.</li>
-    </ul>
-  </div>
+        <h4>Ads Copy formatting &amp; filtering</h4>
+        <ul>
+          <li><b>Only variables</b> are transformed to <b>Title Case</b>; static Ads text is preserved exactly.</li>
+          <li>Spaces around slashes are removed (e.g. <code>1 / 2 / 3 BHK</code> → <code>1/2/3 BHK</code>).</li>
+          <li>JOIN expressions render as compact slash-lists (e.g., <code>{JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3}</code> → <code>1/2/3</code>).</li>
+          <li><b>Row hiding</b>:
+            <ul>
+              <li>Ads rows hide if their required variables are missing.</li>
+              <li>Ads rows with JOIN hide if none of the JOINed variables are provided.</li>
+              <li>Ads rows marked <code>X: true</code> <b>always show</b> (override), regardless of missing variables.</li>
+            </ul>
+          </li>
+        </ul>
 
-  <div class="card">
-    <h3>Prompt: Generate / Update a Type JSON</h3>
-    <p class="muted small">
-      Use this prompt to create or update a complete <b>Type</b> from one or two source tables (Search and/or Ads).
-      Prefer single-brace variables like <code>{CITY}</code>; use legacy <code>{{keywordN}}</code> only when appropriate.
-      For multi-typology lines, use the inline JOIN helper and/or mark always-visible lines with <code>X: true</code>.
-    </p>
+        <h4>Dynamic sample placeholders</h4>
+        <ul>
+          <li>Each input shows a sample value from the Type’s <code>samples</code> (or <code>sampleValues</code>).</li>
+          <li>Samples are hints only — change any input to immediately update outputs.</li>
+        </ul>
 
-<pre><code>You are helping me maintain JSON templates for my internal Keyword Generator tool.
+        <h4>Copy &amp; export</h4>
+        <ul>
+          <li>Click/tap any cell to copy that cell.</li>
+          <li><b>Copy All</b> (Search/Ads) copies as <b>TSV</b> so Sheets/Excel split columns automatically.</li>
+          <li><b>Exports</b>:
+            <ul>
+              <li><b>Search</b>: CSV (<code>outputs_search.*</code>) — JSON export is disabled in UI.</li>
+              <li><b>Ads Copy — Particulars</b>: CSV (<code>ads_particulars.*</code>) — JSON export hidden.</li>
+              <li><b>Ads Copy — Copy</b>: CSV (<code>ads_copy.*</code>) — JSON export hidden.</li>
+            </ul>
+          </li>
+          <li><b>Keyboard shortcuts</b>:
+            <ul>
+              <li><kbd>Ctrl</kbd>+<kbd>E</kbd> → Export CSV (Search / Ads Set)</li>
+              <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> → Export CSV (Ads Copy — Particulars)</li>
+              <li><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd> → Export CSV (Ads Copy — Copy)</li>
+              <li><kbd>Ctrl</kbd>+<kbd>S</kbd> → Save log (manual)</li>
+            </ul>
+          </li>
+          <li>Filenames include an ISO timestamp.</li>
+        </ul>
+
+        <h4>Template JSON format (per Type)</h4>
+        <pre><code>{
+  "Type X": {
+    "nickname": "Optional_Friendly_Name",
+    "columns": ["Campaign Name","Adset Name","Keywords"],
+    "searchRows": [
+      {"campaign":"...","adset":"...","keywords":"..."}
+    ],
+    "adsColumns": ["Particulars","Ads Copy"],      // include if Ads table exists
+    "adsRows": [
+      {"particular":"...","copy":"..."},
+      {"particular":"...","copy":"{JOIN:TYPOLOGY 1, TYPOLOGY 2} BHK", "X": true}
+    ],
+    "variables": ["..."],        // e.g. "BUILDER + PROJECT","CITY","TYPOLOGY 1",...
+    "samples": {"VAR":"..."}     // a sample value for each variable
+  }
+}</code></pre>
+
+        <h4>Authoring prompt (to generate/refresh a Type from tables)</h4>
+        <pre><code>You are helping me maintain JSON templates for my internal Keyword Generator tool.
 
 I may share one or both of these tables (Types can differ; include only what exists):
 - Search (3 columns): Campaign Name | Adset Name | Keywords → becomes searchRows
@@ -443,25 +453,28 @@ Formatting & rules:
 - If a cell is empty, set it to "".
 - Ensure variables[] and samples{} cover all single-brace placeholders used.
 - Return valid JSON only — no extra commentary.</code></pre>
+      </div>
 
-    <h4 class="muted small" style="margin-top:10px">Mini examples</h4>
-<pre>// Search row example
-{"campaign":"BRAND_{BUILDER + PROJECT}_search","adset":"{BUILDER + PROJECT}","keywords":"{BUILDER + PROJECT} {LOCATION}"}
+      <div class="card">
+        <h3>Deployment &amp; Caching Tips</h3>
+        <h4>Local / Git / Server</h4>
+        <ul>
+          <li><b>Local:</b> open <code>index.html</code> directly or via a local server (recommended) so clipboard APIs work reliably (HTTPS or localhost).</li>
+          <li><b>GitHub Pages (or any static host):</b> you can’t set headers easily, so rely on the
+            version query (<code>?v=...</code>) we add to CSS/JS and bump <code>KG_BUILD_ID</code> on each deploy.</li>
+          <li><b>Server (Apache/LiteSpeed/NGINX):</b> prefer setting cache/security headers on the server. See hardening notes below.</li>
+        </ul>
 
-// Ads row examples
-{"particular":"H1 - Project Name","copy":"{BUILDER + PROJECT}"}
-{"particular":"H1 - Project type","copy":"{JOIN:TYPOLOGY 1, TYPOLOGY 2, TYPOLOGY 3, TYPOLOGY 4, TYPOLOGY 5, TYPOLOGY 6} BHK Apartments","X": true}</pre>
-  </div>
-  <div class="card">
-  <h3>Server-Side Hardening (Hostinger)</h3>
-  <p class="muted small">
-    You can’t truly “hide” client-side JS from authenticated users (DevTools/Network will show it). What you <em>can</em> do is block directory browsing, require server auth before any asset loads, add strong security headers, and disable HTML caching so the in-page login always re-prompts.
-  </p>
+        <h4>If you still see stale files</h4>
+        <ul>
+          <li>Open DevTools → Network → check <i>Disable cache</i> → hard reload.</li>
+          <li>Force a version bump: update <code>KG_BUILD_ID</code> and the <code>?v=...</code> query on your script/link tags.</li>
+          <li>Clear host/CDN caches if applicable.</li>
+        </ul>
 
-  <h4>A) Protect the entire site — <code>public_html/.htaccess</code></h4>
-  <p>Put this file in <code>public_html/.htaccess</code>. Create <code>.htpasswd</code> outside <code>public_html</code> (see section B) and update the path.</p>
-  <pre><code># ================================
-# Hostinger hardening & auth
+        <h4>Recommended .htaccess (Apache/LiteSpeed)</h4>
+        <pre><code># ================================
+# Host hardening & no-cache for HTML
 # ================================
 
 # 1) Disable directory listing
@@ -472,14 +485,7 @@ RewriteEngine On
 RewriteCond %{HTTPS} !=on
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# 3) HTTP Basic Auth for entire site
-#    IMPORTANT: change to your real home path
-AuthType Basic
-AuthName "Keyword Generator"
-AuthUserFile "/home/YOUR_USER/.htpasswd"
-Require valid-user
-
-# 4) Security headers (LiteSpeed/Apache)
+# 3) Security headers (LiteSpeed/Apache)
 &lt;IfModule mod_headers.c&gt;
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "DENY"
@@ -490,7 +496,7 @@ Require valid-user
   # CSP: allow own files; inline is permitted because the app uses it
   Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
-  # HSTS (sent only on HTTPS)
+  # HSTS (only on HTTPS)
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
 
   # No-cache for HTML so login gate appears on refresh
@@ -501,73 +507,34 @@ Require valid-user
   &lt;/FilesMatch&gt;
 &lt;/IfModule&gt;
 
-# 5) Block sensitive files
-&lt;FilesMatch "(^\.|\.env(\..*)?$|composer\.(json|lock)$|package(-lock)?\.json$|yarn\.lock$|pnpm-lock\.yaml$|webpack\.config\.(js|cjs|mjs)$|vite\.config\.(js|ts)$|tsconfig\.json$|.*\.map$|.*\.bak$|.*\.sql$|.*\.log$|robots\.txt$)"&gt;
-  Require all denied
-&lt;/FilesMatch&gt;
+# Optional: during dev, disable caching of JS/CSS (remove for prod)
+# &lt;FilesMatch "\.(?:js|css)$"&gt;
+#   Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+#   Header set Pragma "no-cache"
+#   Header set Expires "0"
+# &lt;/FilesMatch&gt;
 
-# 6) Hide VCS & OS junk
+# 4) Hide VCS & OS junk
 RedirectMatch 404 /(?:\.git|\.svn|\.hg|\.DS_Store|Thumbs\.db)(/.*)?$
 
-# 7) MIME defaults
+# 5) MIME defaults
 AddDefaultCharset utf-8
 AddType text/javascript .js
 </code></pre>
-
-  <h4>B) Create <code>.htpasswd</code> (public &amp; admin users)</h4>
-  <ul class="muted small">
-    <li><b>hPanel (no SSH):</b> Security → <i>Password Protect Directories</i>. Protect <code>public_html/</code> (or a subfolder) and add users <code>public</code> and <code>admin</code>. Merge the headers from section A into any <code>.htaccess</code> hPanel creates.</li>
-    <li><b>SSH:</b></li>
-  </ul>
-  <pre><code># Create OUTSIDE public_html
-htpasswd -c /home/YOUR_USER/.htpasswd public   # set PUBLIC password
-htpasswd    /home/YOUR_USER/.htpasswd admin    # set ADMIN password
-</code></pre>
-  <ul class="muted small">
-    <li><b>No SSH:</b> locally run <code>openssl passwd -apr1 "PASSWORD"</code>, then paste lines like <code>public:$apr1$...hash...</code> into <code>/home/YOUR_USER/.htpasswd</code>.</li>
-  </ul>
-
-  <h4>C) Optional: protect only <code>/admin</code> area</h4>
-  <p>If you want the app public but lock down <code>/admin</code>:</p>
-  <ol>
-    <li><b>public_html/.htaccess</b> — keep the hardening headers, remove the site-wide <code>Auth*</code> lines.</li>
-    <li>Create <b>public_html/admin/.htaccess</b>:</li>
-  </ol>
-  <pre><code># Only admin user can access /admin/*
-AuthType Basic
-AuthName "Admin Area"
-AuthUserFile "/home/YOUR_USER/.htpasswd"
-Require user admin
-
-Options -Indexes
-</code></pre>
-
-  <h4>D) Build &amp; cache tips</h4>
-  <ul>
-    <li>Don’t ship source maps (<code>*.map</code>) to production.</li>
-    <li>Bundle &amp; minify JS/CSS; keep secrets server-side only.</li>
-    <li>If Hostinger cache is enabled, exclude your app path or HTML might still be cached.</li>
-  </ul>
-
-  <p class="muted small">
-    After these changes: users must authenticate at the server before any asset loads; directory listing is off; sensitive files are blocked; and HTML won’t be cached so your in-page login re-prompts on refresh.
-  </p>
-</div>
-
-</section>
-
+      </div>
+    </section>
   </main>
 
   <!-- Role hashes (two only). Replace hashes if you change passwords. -->
   <script>
-    window.KG_ADMIN_HASH = "437fe370015ea2e37ce38c7b56dbd6e21b397e733aa07f98fde212f4f7149aee";
+    window.KG_ADMIN_HASH  = "437fe370015ea2e37ce38c7b56dbd6e21b397e733aa07f98fde212f4f7149aee";
     window.KG_PUBLIC_HASH = "034b298b78ffaa422625e47d8fa028422a242ba33dac8505fef4137992716334";
   </script>
 
-  <!-- Your shipped defaults and app logic (keep as-is) -->
-  <script src="templates.js"></script>
-  <script src="app.js"></script>
-  <script src="gate-and-guards.js"></script>
-
+  <!-- Cache-busted JS (match BUILD_ID); use defer so HTML is parsed first -->
+  <script src="templates.js?v=2025-09-05-02" defer></script>
+  <script src="app.js?v=2025-09-05-02" defer></script>
+  <!-- If you have a separate guard script, include it AFTER app.js. Otherwise you can omit this line. -->
+  <script src="gate-and-guards.js?v=2025-09-05-02" defer></script>
 </body>
 </html>
