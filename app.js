@@ -1,6 +1,7 @@
 /* Keyword Generator — app.js
    Role-aware auth, variable-only transforms,
-   Ads Copy combined into two sections: Heading & Description (2 columns each)
+   Ads Copy split into two sections: Heading & Description (2 columns each),
+   STRICT filtering for Search rows (hide incomplete) + legacy keywordN support.
 */
 (() => {
   const PUBLIC_HASH = window.KG_PUBLIC_HASH;
@@ -10,11 +11,10 @@
   const IDLE_LIMIT_MS = 30*60*1000;
 
   try { sessionStorage.removeItem('kg_auth'); } catch {}
+  try { sessionStorage.clear(); } catch {}
 
   // ===== Minimal fallback (not used when templates.js is shipped) =====
   const DEFAULT_TEMPLATES = { types: { "Type 1 (legacy)": { columns:["Campaign Name","Adset Name","Keywords"], rows: [] } } };
-
-  try { sessionStorage.clear(); } catch {}
 
   document.addEventListener('DOMContentLoaded', () => {
     const gate = document.getElementById('gate');
@@ -27,6 +27,7 @@
     }
   });
 
+  // Force a hard reload if restored from BFCache
   window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 
   // ===== State & utils =====
@@ -199,7 +200,7 @@
     renderInputsForType();
     bindShortcuts();
     renderPreview();
-    renderAdsTables(); // NEW: combined Heading/Description tables
+    renderAdsTables(); // two sections: Heading & Description
   }
 
   // ===== Dynamic sample helpers =====
@@ -241,9 +242,20 @@
 
   // ===== Inputs =====
   const slugifySafe = s => slugify(s).replace(/[^a-z0-9-]/g,'-');
+
   function typeHasVariables(typeName){
     return !!(state.templates.types[typeName] && Array.isArray(state.templates.types[typeName].variables));
   }
+
+  // NEW: detect how many legacy keywordN inputs a type needs
+  function maxKeywordIndexInType(typeName){
+    const type = state.templates?.types?.[typeName];
+    if(!type) return 3;
+    const scan = JSON.stringify(type);
+    const matches = [...scan.matchAll(/{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi)].map(m=>Number(m[1]));
+    return matches.length ? Math.max(...matches) : 3;
+  }
+
   function renderInputsForType(){
     const typeName = qs('#in-type').value;
     const box = qs('#kw-box'); if (!box) return;
@@ -260,11 +272,12 @@
         box.appendChild(wrap);
       });
     } else {
-      const maxN = 3;
+      const maxN = maxKeywordIndexInType(typeName);
       for(let i=1;i<=maxN;i++){
         const wrap = document.createElement('div');
         const key = `keyword${i}`;
-        wrap.innerHTML = `<label>${key} ${i===1?'(required)':''}</label><input type="text" id="in-${key}" placeholder="">`;
+        const sample = sampleForLabel(typeName, key, i-1);
+        wrap.innerHTML = `<label>${key} ${i===1?'(required)':''}</label><input type="text" id="in-${key}" placeholder="${escapeHtml(sample)}">`;
         box.appendChild(wrap);
       }
     }
@@ -280,6 +293,7 @@
     const nick = def && def.nickname ? ` (${def.nickname})` : '';
     return `${typeId}${nick}`;
   }
+
   function populateTypeSelect(){
     const sel=qs('#in-type'); if(!sel) return;
     qsa('option', sel).forEach((o,i)=>{ if(i>0) o.remove(); });
@@ -290,7 +304,6 @@
         o.textContent=getTypeDisplayName(t);
         sel.appendChild(o);
       } else {
-        // update display text for first option too
         sel.options[0].textContent = getTypeDisplayName(t);
       }
     });
@@ -335,7 +348,7 @@
   function parseJoinLabels(str=''){
     const labels = [];
     const re = /{\s*JOIN:([^{}]+)\s*}/gi;
-    let m; 
+    let m;
     while ((m = re.exec(str))) {
       const csv = m[1];
       csv.split(',').map(s=>s.trim()).filter(Boolean).forEach(l=>labels.push(l));
@@ -361,34 +374,89 @@
     });
   }
 
-  // ===== Row filtering =====
+  // ===== Row filtering (Search + Ads) =====
+
+  // Extract single-brace labels
   function extractNamedLabels(str=''){
     const set = new Set();
     const re = /{\s*([^{}]+?)\s*}/g;
-    let m; 
+    let m;
     while((m = re.exec(str))){
       const label = m[1].replace(/^\{|\}$/g,'').trim();
-      if (/^JOIN:/i.test(label)) continue;
+      if (/^JOIN:/i.test(label)) continue; // JOIN handled separately
       set.add(label);
     }
     return set;
   }
-  function requiredRefsForAdsRow(row){
-    const n = extractNamedLabels(row.copy || '');
-    return { named: n };
+
+  // Legacy keywordN references
+  function extractKeywordIndexesFromPlaceholders(str=''){
+    const set = new Set();
+    const re = /{{\s*keyword(\d+)(?:\.[a-z]+)?\s*}}/gi;
+    let m; while((m = re.exec(str))){ set.add(Number(m[1])); }
+    return set;
   }
+  function extractKeywordIndexesFromLiterals(str=''){
+    const set = new Set();
+    const re = /(^|[^a-z0-9])keyword(\d+)(?=$|[^a-z0-9])/gi;
+    let m; while((m = re.exec(str))){ set.add(Number(m[2])); }
+    return set;
+  }
+
+  // Required refs per Search row
+  function requiredRefsForSearchRow(row){
+    const s1p = extractKeywordIndexesFromPlaceholders(row.campaign || '');
+    const s2p = extractKeywordIndexesFromPlaceholders(row.adset || '');
+    const s3p = extractKeywordIndexesFromPlaceholders(row.keywords || '');
+    const s1l = extractKeywordIndexesFromLiterals(row.campaign || '');
+    const s2l = extractKeywordIndexesFromLiterals(row.adset || '');
+    const s3l = extractKeywordIndexesFromLiterals(row.keywords || '');
+    const s1n = extractNamedLabels(row.campaign || '');
+    const s2n = extractNamedLabels(row.adset || '');
+    const s3n = extractNamedLabels(row.keywords || '');
+    return {
+      keywordIdx: new Set([...s1p, ...s2p, ...s3p, ...s1l, ...s2l, ...s3l]),
+      named:      new Set([...s1n, ...s2n, ...s3n])
+    };
+  }
+
+  // Required refs per Ads row (copy only is variable-bearing)
+  function requiredRefsForAdsRow(row){
+    const n  = extractNamedLabels(row.copy || '');
+    const kp = extractKeywordIndexesFromPlaceholders(row.copy || '');
+    const kl = extractKeywordIndexesFromLiterals(row.copy || '');
+    return { keywordIdx:new Set([...kp, ...kl]), named:n };
+  }
+
   function rowHasAllVars(refs, vars){
+    for (const idx of (refs.keywordIdx || [])){
+      if (!String(vars['keyword'+idx] || '').trim()) return false;
+    }
     for (const label of (refs.named || [])){
-      const v = vars[label];
-      if (v == null || !String(v).trim()) return false;
+      if (!String(vars[label] || '').trim()) return false;
     }
     return true;
   }
+
+  // Strict filter for Search rows: all required inputs present AND evaluated Keywords not empty
+  function filterSearchRowsByVars(rows, vars){
+    return rows.filter(r => {
+      const refs = requiredRefsForSearchRow(r);
+      if (!rowHasAllVars(refs, vars)) return false;
+      const kwEval = evaluateWithTransforms(r.keywords || '', vars, {
+        namedTransform:  varLowerSpaces,
+        legacyTransform: varLowerSpaces
+      }).trim();
+      if (!kwEval) return false;
+      return true;
+    });
+  }
+
+  // Ads rows filter: require inputs, JOIN must have at least one value; X:true overrides
   function filterAdsRowsByVars(rows, vars){
     return rows.filter(r => {
       if (r?.X === true) return true;
-      const refsOk = rowHasAllVars(requiredRefsForAdsRow(r), vars);
-      if (!refsOk) return false;
+      if (!rowHasAllVars(requiredRefsForAdsRow(r), vars)) return false;
       if (!hasAnyJoinValue(r.copy || '', vars)) return false;
       return true;
     });
@@ -406,7 +474,8 @@
       return def.adsCopy.rows.map(x => ({
         particular: x.particulars ?? x.particular ?? '',
         copy: x.copy ?? '',
-        X: x.X === true
+        X: x.X === true,
+        section: x.section
       }));
     }
     return [];
@@ -422,8 +491,8 @@
 
     const rows = getSearchRows(def);
     const vars = collectVars();
-    // Search previously filtered by required vars (legacy behavior).
-    const visibleRows = rows; // keep all visible so user can see structure
+
+    const visibleRows = filterSearchRowsByVars(rows, vars);
 
     visibleRows.forEach(r=>{
       const tr = document.createElement('tr');
@@ -451,12 +520,12 @@
     });
   }
 
-  // ===== ADS TABLES (combined, split by section) =====
+  // ===== ADS TABLES (combined by section) =====
   function adSectionOf(row){
     if (row.section === 'heading' || row.section === 'description') return row.section;
     const p = (row.particular ?? '').toLowerCase();
     if (p.startsWith('description')) return 'description';
-    if (/^(h\d\b|[12]\s*-)/.test(p)) return 'heading'; // H1/H2/H3... or "1 -", "2 -"
+    if (/^(h\d\b|[12]\s*-)/.test(p)) return 'heading'; // H1/H2/H3 or "1 -" / "2 -"
     return 'heading'; // default fallback
   }
 
@@ -534,7 +603,8 @@
     const typeName = qs('#in-type').value;
     const vars=collectVars();
     const rows = getSearchRows(state.templates.types[typeName]);
-    return rows.map(r=>{
+    const visible = filterSearchRowsByVars(rows, vars);
+    return visible.map(r=>{
       const campaign = evaluateWithTransforms(r.campaign, vars, { namedTransform:varLowerUnderscore, legacyTransform:varLowerUnderscore });
       const adset    = evaluateWithTransforms(r.adset,    vars, { namedTransform:varLowerUnderscore, legacyTransform:varLowerUnderscore });
       const keywords = evaluateWithTransforms(r.keywords, vars, { namedTransform:varLowerSpaces,     legacyTransform:varLowerSpaces     });
@@ -777,7 +847,7 @@
     const v = {};
     qsa('input[id^="in-keyword"]').forEach(inp=>{
       const n = inp.id.match(/in-keyword(\d+)/)?.[1];
-      if (n) v['keyword'+n] = inp.value.trim();
+      if (n) v['keyword'+n] = (inp.value || '').trim();
     });
     const typeName = qs('#in-type').value;
     if (typeHasVariables(typeName)) {
